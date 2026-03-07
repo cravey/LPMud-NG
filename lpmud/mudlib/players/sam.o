@@ -1,0 +1,45 @@
+scar 1
+other_copy 0
+stats_is_updated 1
+access_list 0
+tot_value 0
+mailaddr "none"
+quests "orc_slayer"
+called_from_ip "90.0.0.161"
+max_headache 0
+headache 0
+soaked 0
+stuffed 0
+intoxicated 0
+al_title "nice"
+password "phl96Xx.mO4L."
+title "the small dragon"
+Dex 14
+Con 14
+Int 13
+Str 14
+gender 0
+alignment 117
+flags 0
+dead 0
+auto_load "obj/quicktyper:0;^!"
+whimpy 0
+frog 0
+is_invis 0
+age 22848
+spell_points 154
+ghost 0
+mmsgin "arrives in a puff of smoke"
+mmsgout "disappears in a puff of smoke"
+experience 131687
+max_sp 146
+max_hp 154
+hit_point 154
+level 15
+brief 0
+is_npc 0
+msgout "leaves"
+msgin "arrives"
+name "sam"
+money 6392
+time_to_heal 10

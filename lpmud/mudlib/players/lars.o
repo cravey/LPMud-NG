@@ -1,0 +1,45 @@
+scar 0
+other_copy 0
+stats_is_updated 1
+access_list 0
+tot_value 10
+mailaddr "lars@cd.chalmers.se"
+quests "torchrunner#faston#orc_slayer#Bods#Mjoelner#adam#angmar#ingis#ultimate#surt#feanor#rincewind#padrone"
+called_from_ip "90.0.0.161"
+max_headache 0
+headache 0
+soaked 0
+stuffed 0
+intoxicated 0
+al_title "Busy ..."
+password "f8o6EqJ6kihHE"
+title "The Implementor"
+Dex 20
+Con 20
+Int 20
+Str 20
+gender 1
+alignment 11991
+flags 0
+dead 0
+auto_load ""
+whimpy 0
+frog 0
+is_invis 0
+age 1233311
+spell_points 1000
+ghost 0
+mmsgin "arrives through a rift in the fabric of space"
+mmsgout "leaves through a rift in the fabric of space"
+experience 1004599
+max_sp 202
+max_hp 202
+hit_point 1000
+level 1000
+brief 1
+is_npc 0
+msgout "leaves"
+msgin "arrives"
+name "lars"
+money 52407
+time_to_heal 10

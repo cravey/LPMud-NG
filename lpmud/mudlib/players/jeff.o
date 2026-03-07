@@ -1,0 +1,45 @@
+scar 0
+other_copy 0
+stats_is_updated 1
+access_list 0
+tot_value 0
+mailaddr "ksh@turtle"
+quests "orc_slayer"
+called_from_ip "90.0.0.161"
+max_headache 0
+headache 0
+soaked 0
+stuffed 0
+intoxicated 0
+al_title "nice"
+password "LOMbuyWKraagI"
+title " the wizard"
+Dex 21
+Con 21
+Int 21
+Str 21
+gender 1
+alignment 2
+flags 0
+dead 0
+auto_load "obj/quicktyper:0;^!"
+whimpy 0
+frog 0
+is_invis 0
+age 46020
+spell_points 210
+ghost 0
+mmsgin "arrives in a puff of smoke"
+mmsgout "disappears in a puff of smoke"
+experience 1048442
+max_sp 210
+max_hp 210
+hit_point 141
+level 21
+brief 0
+is_npc 0
+msgout "leaves"
+msgin "arrives"
+name "jeff"
+money 14043
+time_to_heal 3

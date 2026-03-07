@@ -1,0 +1,7 @@
+#include "std.h"
+
+TWO_EXIT("players/kantele/kitiaras_crossing","west",
+         "players/kantele/snake_pit',"climb",
+         "In a room with a pit",
+         "You are in a room with a pit, the only exit seems to be east\n" +
+         "tough its maybee possible to climb dow into the pit.\n",1)

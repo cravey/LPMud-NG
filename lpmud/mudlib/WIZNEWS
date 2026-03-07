@@ -1,0 +1,7 @@
+Don't use input_to() to an object that you destruct. There seems to be
+a bug here, which can crash the game.
+
+NOTE:
+Wizard interference, doing things to players, is not allowed!
+This may ruin the game, so do NOTHING like that, Not even 'jokes'
+that are 'harmless'.

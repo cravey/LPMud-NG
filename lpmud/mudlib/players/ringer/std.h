@@ -1,0 +1,1 @@
+/gauss1/rmoore/lpmud/mudlib/room/std.h

@@ -1,0 +1,511 @@
+Changes from 2.4.4 to 2.4.5
+
+1.  Player stats has been implemented. They are implemented in a way, so as
+    to be as compatible as possible. When upgrading from 2.4.4 to 2.4.5,
+    the players will not immediately see any differences. There are four
+    character stats: strength, intelligence, dexterity and constitution.
+    They can be raised in adventurers guild by paying with experience points.
+    First time an old player logs in, his stats will be initialized to the
+    his level. Carrying ability will use 'Str + 10' instead of 'level +10'.
+    Max spell points will be 'Int*8 + 42'. Max hit points 'Con*8 + 42'.
+    A new wc = (old wc * 2 + dex)/3. As it is thus more expensive to advance
+    all the way to wizard, it is recommended that the cost for exp (defined
+    by /room/tune.h) is lowered somewhat.
+
+2.  All keywords and reserved words has been taken out of lexical.l and
+    lang.y into a separate table. It is now also allowed to redefine
+    keywords (in which case the old meaning will be lost).
+
+3.  The Cc field in the new post office was incorrect.
+
+4.  There was a bug in extract(), which under bad circustances could change
+    the value of constant 1.
+
+5.  There was a severe bug in find_living(), when the sought name was long
+    enough.
+
+6.  When a living object was destroyed and carried other living objects, these
+    other living objects would be moved out, and force init() to be called
+    of the to-be-destroyed object. This would call set_heart_beat(1) in
+    an object which had already been linked out of the heart beat list, which
+    is fatal.
+
+7.  The command 'score' now takes 'stats' as argument, which will print
+    the character stats.
+
+8.  A scroll of information is given to the new wizard.
+
+9.  Earmuffs has been implemented (no, I didn't do it. someone else did it
+    for me).
+
+10. New command for /obj/trace: Clean. Takes an object (room) as argument,
+    and destroyes objects in that room, except for players.
+
+Changed from 2.4.3 to 2.4.4
+
+1.  All strings are now allocated by a dynamic string pool, which
+    use a hash table for quick searches. This shared string pool reduces
+    memory usage with aproximately 10 %.
+
+2.  write_file() has been changed so that strings will be appended to the
+    file instead of clearing the file first.
+
+3.  All manipulation of 'struct svalue' has been centralized, which makes
+    debuging much more easy.
+
+4.  Bit fields has been implemented. They are stored in normal strings,
+    6 bits per character. A space (' ') represents 6 cleared bits. The
+    living.c object has been extended with one such bit field. The idea is
+    that wizards should get rights to use a few bits from the administrator.
+    He can then use these bits to store information about for example if
+    a player is a member of a guild, or has solved a once-only problem.
+
+5.  The names of all living objects are now stored in a hash table, to
+    speed up find_living() and find_player(). This has the effect that a
+    living object can only have one name that can be found using
+    find_living(). The name is set using set_living_name(). This is
+    automatically done for monster.c and player.c.
+
+6.  It is now possible to catch an error, using catch(expr). If there is no
+    error, then 0 is returned. If there is an error, than the error message
+    is returned in a string. There is a lso a function throw(val) that
+    forces catch() to return immediately with value 'val'.
+
+7.  A function notify_fail(str) can be called to enable another error
+    message instead of 'What ?'.
+
+8.  As programs in LPC usually do use several common leafs, these can be
+    shared. This fix (which was implemented using a new lnode type L_CONSTAT),
+    saves aproximately 8 % of the total memory.
+
+9.  There was a severe bug in smalloc.c. When doing sbrk(4), some machines
+    (sun 4) will return 8 bytes. But, smalloc.c depends on the exact number
+    of bytes being allocated. This has been fixed, using brk() instead.
+
+10. New objects in /obj: alco_drink.c, food.c and soft_drink.c.
+    They are using the new stuffed and soaked.
+
+11. The player.c function query_quests has been changed to return the string
+    of all quests when argument == 0, instead of writing them out.
+
+12. Permission has been changed so that a wizard caan clone objects from
+    other wizards. This has always been possible anyway, when using home-made
+    cloners.
+
+13. The command ' has been changed, so that no space is needed.
+
+14. The bulletin boards has got a bug fixed, and some cleanup.
+
+15. Rules in /doc/build for drinks and food.
+
+16. A bug has been fixed in input_to() which could crash the game if the
+    object was destructed.
+
+17. Several bugs was fixed in comm1.c.
+
+18. An average is now computed for number of commands executed per second,
+    and number of LPC lines compiled per second. The average is spread over
+    the last 15 minutes.
+
+Changes from 2.3 to 2.4
+
+1.  A new reset scheme is used. The idea is, that instead of calling reset()
+    in rooms regularily, a flag is set. reset() in the room will next be
+    called when someone enter the room. This saves memory, as treasures and
+    monsters are not regenerated where no players are.
+
+2.  New function: query_snoop(ob). Report who is snooping on 'ob'. Can only
+    be called by arch wizards (from level 24). (Not working properly yet)
+
+3.  New, function: find_player('str'). Will use 'query_real_name()' to find
+    a player. This function is much more cheap than find_living(). It will
+    also find link dead players and invisible players. It is used when the
+    player loggs in.
+
+4.  Bugs has been fixed in call_out().
+
+5.  Four memory leaks has been fixed: In call_out(), when inheriting,
+    in pre_compile() and in player.c using a better timeout.
+
+6.  Password is no longer echoed.
+
+7.  The main city road has been extended by two extra "rooms", and
+    an "eastroad". A big (and rather empty) area has been added in the
+    southwest part of the southern forest.
+
+8.  'ed' has been changed, so that when started without any argument,
+    it will edit the last file with an error in it. This works both for
+    runtime error and compile time error. This helps debuging a lot.
+
+9.  Restricted usage of '!'. Could earlier be used when the game was asking
+    for password.
+
+10. Improved documentation.
+
+11. String comparisons for <, >, <=, >=.
+
+12. New funcion file_size(file). Returns the size of a file in bytes. Returns
+    -1 for nonexistant or unreadable files.
+
+13. New function: write_file(file, str). Write the string 'str' into the new
+    file 'file'.
+
+14. Access lists has been implemented, that gives write permission to a
+    group of players into a specified directory in /room or /players.
+    This encourages group work.
+
+15. Updated /obj/trace. Changed commands 'i_trans' into 'Trans' to make it
+    easier to use etc. Added the syntax '*name' that uses find_player().
+    Better help information provided.
+
+16. Made a file room/log.h, that controls what logging is to be turned
+    off or on.
+
+17. add_prog_ref() was called from load_ob_from_swap(), which meant that
+    an object that had once been swapped out, never would be swapped out
+    again.
+
+18. Changed swapping algorithm. Working set reduced by 50 %. It is important
+    that swapping is enabled now. There are no penalties for using swapping,
+    except a minor slow down when compiling an object and a big swap file.
+
+    All objects are swapped out immediately after they had been loaded. When
+    they are swapped in again, the program block is stored in one sequential
+    memory block. This is what reduces the working set of the game.
+
+    After this fix, I could change the maximum size of Genesis from 7 Mbytes
+    to 11 Mbytes. The working set when 20-30 players is active, seems to
+    be aprox 5 Mbytes.
+
+19. Improved users() function, that copy the players from all_players[]
+    in comm1.c, and thus is much faster.
+
+20. The variable names are now swapped with the object.
+
+21. Hashed object names, makes find_object("str") much faster.
+
+22. Manuals in obj/trace allows 'man topic', and will search for that
+    topic in all manuals, or present available subtopics.
+
+23. Static file variables. Will not be saved in save_object(). This saves
+    disk space, as the saved player files are smaller.
+
+24. Every time a player of level 10 or higher dies, he will get "nice" scar,
+    to show his friends.
+
+25. Players and monsters now have one of three genders: male, female or
+    neuter. Email addresses are stored for players.
+
+26. for-loops, do-while loops. ++ and --.
+
+27. query_idle(ob) returns the idle-time of a player 'ob'.
+
+28. A new interesting death sequence. Killed players are moved to a special
+    room where they will meet Death himself. It takes some time, and will
+    probably be annoying the second time. But, why should it be harmless
+    to die ?
+    
+    This also prevents the problem where a beginner can attack a BIG monster,
+    die, revive, and attack again to get a good start of the game.
+
+29. If a return-statment follows a destruct(this_object()) statement, then
+    that return-statement will be executed. This enables destructed objects
+    to return a value.
+
+30. The builtin 'ls' has been changed so that .i files are not listed.
+
+31. The bulletin board at adv_inner has been changed to use explode() and
+    implode(). This uses considerably less memory. The board save file is
+    not compatible with the old format (sorry). An extra room with a board,
+    adv_inner2, has been created to discuss LPC related questions. Both these
+    boards do not allow level 21 wizards to remove any other notes then their
+    own.
+
+32. A new much improved post office.
+
+33. An new object /obj/roommaker.c, which can be used by wizards to make
+    rooms. It will interactively ask for long description, short description
+    and exits, and make a file which defines this room. It can load back
+    information from rooms that was originally made by it, and change them.
+
+34. Typeahead is now allowed. All players have a guarantee that no player
+    may give more commands than any other. Also, if the heart beats uses
+    too much time, then it is temporary halted, to be continued after
+    player commands.
+
+35. A new file, /room/log.h has been created, where a lot of logging can
+    be enabled or disabled. It can log how players got quests flags, when
+    and why players were killed, when someone gives money to other and
+    much more.
+
+These are the changes to 2.3 from 2.2:
+
+1.  query_host_name()
+
+    Gives the name of the host. Not interesting for normal wizards.
+
+2.  tail()
+
+    Print the last lines of a long file. Good to have to look at the
+    runtime error file '/machinename.debug.log'.
+
+3.  Bug fixed in move_current_reset.
+
+    There was a bug that made current_reset point to a destructed object.
+
+4.  Saving value of objects when crash.
+
+    The value is saved at the automatic save of the characters. There is no
+    value saved when the player quit. If a player log in, and has a value
+    saved, then he will get this as money.
+
+5.  Bug fixed in extract()
+
+    There was an error that made the game crash, if argument 2 was bigger
+    than the size of the string.
+
+6.  Extra flag to add_action().
+
+    A third flag that if true means that only the leading characters of
+    the command has to match the verb.
+
+7.  call_out() uses real time, not heart beats to compute correct time.
+
+    There was a problem when call_out() would delay very long because the
+    game was slow.
+
+8.  The 'wizlist' is compressed.
+
+    Only an area around the wizard is printed, and the top 15 wizards. A
+    wizard name can be given as argument. If the name is ALL, then the whole
+    wizlist is printed, even those with value 0.
+
+9. #ifdef fixed.
+
+    There can now be '#ifdef' statements inside functions. There was a bug
+    in lang.y so that there could earlier only be #ifdef outside functions.
+
+10. command() returns success or failure. It can not force players to do
+    anything that is defined by static functions.
+
+11. '!' escape.
+
+    The '!' command escape from 'ed' now works in all situations, when
+    writing mail etc.
+
+12. explode(str, del).
+
+    Split string 'str' into an array of strings at the places defined by
+    the string 'del'. explode(str, " ") will return an array of all
+    words in 'str'.
+
+13. crypt(str, salt).
+
+    crypt() now takes two arguments, and is compatible with unix crypt().
+    This means that the first two characters in the crypted password for
+    players now is the salt, not a copy of the real password. If the second
+    argument is 0, a random salt will be used.
+
+14. New binary and unary operators: ~, &, &=, |, |=, ^, ^=, <<, <<=, >>, >>=
+
+    Thanks to Per Emanuelsson for these long awaited operators. I know
+    that some american LPmuds already have them.
+
+15. valid_write().
+
+    valid_write() in player.c has been changed to allow cat() for files at
+    the same directory as the file which defines the function that does the
+    call of cat().
+
+16. Command defined by living objects.
+
+    There was severe bug when living objects defined commands for other living
+    objects. This bug was pinpointed with the help of Xurbax@PITT, and fixed
+    by merging set_curremt_room() into move_obect(), which should have been
+    done long ago.
+
+17. A fix for inet_ntoa().
+
+    The call of inet_ntoa() has been fixed, and if there still are problems,
+    then there is a replacement provided that can be conditionally compiled.
+
+18. New wizard commands: cd, pwd, more, rmdir and mkdir.
+
+19. There is now a replacement for std.h: room.c. It is not an include file,
+    but should be inherited. Look at the new room/vill_green.c for example
+    of how it is used. There is also a file room/room.h that can be used
+    as a replacement for std.h. It is compatible, but supports only
+    EXTRA_RESET, and no other EXTRA_xx.
+
+20. save_object() does not destruct the save file when disk is full, as
+    data is written into a temporary file, and then moved to the correct
+    destination if successful.
+
+These are the changes to 2.2 from 2.1:
+
+1.  Arrays: allocate(), sizeof(), wizlist
+
+    An array of size n can be allocated with 'allocate(n)'. You can't declare
+    arrays. The function sizeof() returns the size of an array. The array
+    pointer can be stored in variables, and sent as arguments as any
+    type. They can then be used by indexing:
+    'vec=allocate(3); vec[0] = 8; ...'
+    You don't deallocate arrays explicitely, they are deallocated when the
+    last reference is removed. An array element can have a value of any type,
+    even pointer to array (thus enabling multidimensional arrays).
+
+2.  query_ip_number() can now take an optional object as argument. It can
+    then be used to find out if an object is interactive. Link dead players
+    are not interactive.
+
+3.  ctime() takes the value from time() adn returns a nice string with the
+    local time and date.
+
+4.  disable_commands() Opposite to enable_commands().
+
+5.  The monster.talk.c has been replaced with just monster.c, which has
+    the chat and talk functions replaced with arrays. The old monster.talk.c
+    remains for compatibility. If you have problems with the game being do
+    big, change monster.talk.c so that the old chat feature is disabled,
+    and thus forcing wizards to use the new method with arrays.
+
+6.  predicate functions for all types: int(), objectp(), stringp() and
+    pointerp().
+
+7.  Bug fixed in malloc.c as well as much better speed. The statistics given
+    by the command 'malloc' is now correct.
+
+8.  users() returns a vector of all interactive objects.
+
+9.  cat() returns success status and takes more optional arguments (start, end).
+
+10. A general purpose object info retriever: obj/trace.c This object has
+    been defined by using lot of good ideas from both Fizban and Anders Ripa.
+    A problem is that wizards always want to make the "perfect" tool. Such a
+    tool usually uses more than 50 Kbytes of memory, and if it is autoloaded,
+    you won't need many wizards until 1 Mbyte has been "wasted". This new
+    tool will hopefully satisfy wizards. It is also an attempt to standardize,
+    so that players that have wizards on more than one mud have it more easy.
+
+11. add_action() takes 2 arguments. And checks that the object defining the
+    command is present.
+
+12. New syntax: ob->fun(args), which is equivalent to
+    'call_other(ob, "fun", args)'.
+
+13. Fixed a bug in '::'. The bug was when the inheritance depth was bigger
+    than 2, and one of the above bottom objects used '::'.
+
+14. 'sell all' fixed in the shop.
+
+15. String handling has been optimized, using a flag 'constant' in the
+    value nodes.
+
+20. 'ls' is now builtin and is much faster.
+
+21. The call of combine_free_list() frequency is dependant on the length.
+
+22. Aggregate initializations of arrays:
+    ({ 1, 2, "apa", ob, 2 })
+    Will construct an array of length 5, initialized.
+
+23. file_name() Gives the file name of an object.
+
+24. extract() Extract strings out of strings.
+
+25. tell_room() Can now also take an object file name as argument.
+
+26. command() has second optional argument, the object to execute the
+    command. This object must be living. This new feature makes it possible
+    to force any wizard to do anything, but abusements are of course illegal.
+    The good things with this are big. It is now possible to have objects
+    that defines abbreviations for you as example. It is also possible
+    to construct a "team" object, that enables players to join with a leader
+    into a team, and follow him automatically (not implemented yet).
+
+27. A "graceful" shutdown when the game runs out of memory. The players will
+    be given 4 minutes of warning by a monester called
+    Armageddon (obj/shut.c). This is called automatically from malloc.c.
+
+These are the changes to 2.1 from 2.0:
+
+1.  A lot of memory leaks removed.
+
+2.  A specialised malloc() for LPmud.
+
+    The new malloc will use the algotrith 'best fit', and use as little
+    overhead as possible. It maintains several free lists for different
+    blocks sizes. A function 'combine_free_list()' is called once 60
+    seconds that will join addjacent free blocks together.
+
+3.  LPC functions can now be 'static'.
+
+    This fix a lot of security problems, and make programs more documented :-)
+
+4.  New functions call_out() and remove_call_out();
+
+    Call a function in current object after a delay, with an argument. This
+    takes off load from the heart beat. It is currently used for decaying
+    corpses and burning torches.
+
+5.  += Now accepts strings on the left side.
+
+6.  New function creator().
+
+    Give the name of the wizard that cloned the object. Good to have
+    to trace monsters and weapons.
+
+7.  Assignments are treated as expressions, not statements.
+
+    At last, you can do 'if (flag = 0) ...' :-)
+    Long awaited fix.
+
+8.  Big bugs has been fixed.
+
+9.  Some of the gunk written to the debug file has been removed.
+
+10. The present() function is changed so that 'get axe from corpse 3' works.
+
+11. Even more security holes removed.
+
+12. The file obj/living.h has been renamed into obj/living.c, and a new
+    living.h now does 'inherit "obj/living";'.
+
+Below is a list of new things implemented in LPmud 2.0. Some of them might
+be older because I had forgotten when they were implemented.
+
+1. Functions can now have more than one argument. call_other() does also
+   support this.
+
+2. An object can inherit from another object. All variables will be
+   copied, and all functions will be available. This is "memory cheap".
+
+3. String managements have been sped up aprox 3 times (since 1.3.3).
+
+4. The ip-number of the player is saved with the player object. If the player
+   calls the game from a different number than last time, the previous
+   will be printed out. This is to enhance security.
+
+5. It is now possible to lock out players from a special ip-address, or
+   a whole area.
+
+6. There is a new function 'time()', that gives the number of seconds since
+   1970.
+
+7. The 'status' command does better calculation of total memory used. Still not
+   enough, though.
+
+8. A lot of security holes has been removed.
+
+9. A memory saving string space has been introduced. This space contains
+   some often used strings, and reuse them at compile time.
+
+10. The bug/typo/idea command now sends a message to the log file of the
+    wizard that owns the current room.
+
+11. A quest system has been developed. To become wizard, you must solve all
+    quests. The quests is listed at adventurers guild. Any wizard can create
+    a quest (only one), and it must be approved by an arch wizard. These quests
+    forces the players to solve puzzles, not just go around killing monsters.
+    The quests should no be hard to solve. Rather, they should force the player
+    to explore a bigger part of the game.

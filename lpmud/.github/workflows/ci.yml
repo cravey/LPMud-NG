@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  warnings:
+    name: Warnings Gate (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flex bison
+
+      - name: Build with strict warnings
+        run: make ci-warnings
+
+  sanitizers:
+    name: Sanitizer Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flex bison
+
+      - name: Build with ASan + UBSan
+        run: make ci-sanitize
+
+  static-analysis:
+    name: Static Analysis (clang --analyze)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flex bison clang
+
+      - name: Run static analysis
+        run: make ci-analyze

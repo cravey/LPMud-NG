@@ -1,0 +1,52 @@
+###
+set environment variable MUD_BIND_ADDR, or default to localhost
+set environment variable MUD_LIB or it will default to ./mudlib
+###
+   
+The file IDEA explains what the game is about and how to compile it.
+
+* Use the command script 'config.mud' to configure.
+  It has a few possibilities, but
+  the only thing that works for the moment it 'config.mud inet'.
+
+* Edit the file config.h and makefile for your environment.
+
+* You should probably replace '-g' in makefile with '-O', as this will make
+  the file smaller and faster. The '-g' is used for debugging.
+
+* Then you only have to do 'make parse'.
+
+* Edit the file mudlib/room/tune.h, to set the game at a good level.
+
+* Edit mudlib/room/log.h, to define what things are supposed to be logged.
+
+* Edit mudllib/WELCOME, which is the message printed when players connect
+  to the game, before they have logged in.
+
+* Edit mudlib/room/init_file. Some lines has been added here in LPmud 2.4.
+
+'parse' is the game. Start it first. Use either telnet or 'frontend'
+to communicate with 'parse'. The frontend program is under development,
+especially with better output managing.
+
+The file NEW specifies new features of this release. Copy it to
+mudlib/CHANGES or something if you want to make it available to your wizards.
+
+
+
+
+CI checks
+
+The repository includes CI safety targets in `Makefile`:
+
+* `make ci-warnings`  
+  Builds `parse` and `count_active` with `-Wall -Wextra -Wpedantic -Werror`.
+
+* `make ci-sanitize`  
+  Builds with AddressSanitizer + UndefinedBehaviorSanitizer.
+
+* `make ci-analyze`  
+  Runs `clang --analyze` on the C sources.
+
+* `make ci`  
+  Runs all checks above.

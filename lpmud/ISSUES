@@ -1,0 +1,43 @@
+LPmud CI Issues
+Date: 2026-02-21
+Last Updated: 2026-02-21 (post H-03/H-04 remediation)
+Source: `make ci`
+
+Summary
+- `ci-warnings`: PASS
+- `ci-sanitize`: PASS (build profile)
+- `ci-analyze`: PASS (no warnings emitted)
+- Current outstanding issues: 0
+  - 0 static analyzer warnings
+  - 0 parser-generation conflicts
+
+Resolved In This Pass
+- High-severity hard issues:
+  - `H-03` null-safe swap area growth copy path in `swap.c::ass_size`
+  - `H-04` defined `L_BLOCK` load path when no block payload is present
+- Medium-ease runtime correctness fixes:
+  - `M-13` precompiler fork/dup2 control-flow hardening in `simulate.c`
+  - `M-08` null-safe command error reporting in `simulate.c`
+  - `M-06/M-07` stream-state handling improvements in `simulate.c::tail`
+  - `M-10/M-11` stream-state handling improvements in `ed.c::egets`
+- Parser/interpreter hygiene fixes:
+  - `M-05` null guard for sscanf format string in `interpret.c`
+  - `M-12` safer adjective parser loop guards in `parse.c`
+  - `M-14` removed yacc shift/reduce conflict by explicit if/else precedence in `lang.y`
+
+Previously Resolved
+- All originally categorized easy issues (`E-01`..`E-14`).
+- `M-01` (`copy_svalue()` undefined return path).
+- `M-02`, `M-03`, `M-04` (`current_object` null-deref guards in interpreter).
+
+Severity scale
+- High: plausible crash/UB/data corruption risk.
+
+Ease scale
+- Hard: structural/control-flow assumptions; needs deeper design or broader tests.
+
+Remaining Issues (Hard Ease)
+- None currently identified by `make ci` static analysis.
+
+Recommended Next Order
+1. Continue with targeted runtime gameplay smoke tests (swap/unload/load paths).

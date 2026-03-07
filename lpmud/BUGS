@@ -1,0 +1,30 @@
+The programming language should be better documented.
+
+A tftp protocol could maybe be implemented, allowing wizards to send and
+receive their files.
+
+The 'struct lnode' should be remade into a union, containing all variations
+of lnodes. This would remove a lot of casts, and clean up the program.
+
+The string space should be allocated dynamically. stralloc.c does this, but
+isn't used yet.
+
+There is too much inflation in the game.
+
+Some of the error resports that goes to the debug file should also
+go to the wizards log file.
+
+malloc.c: resort_free_list() should be called in a more clever way. Not
+just from the church now and then. It would be better to call it when
+it is needed, whatever that is. Using smalloc.c solved this problem.
+
+Search pattern /*/ in ed will hang.
+
+All calls to xalloc() should be replaced with direct call to the local
+
+All predefined name identification should be implemented with a hash table,
+and thus removed from both lang.y and lexical.l. This would save space
+and tidy up. Flex is fast, so maybe speed will not be saved.
+
+If query_weight() in an object calls destruct(this_object()), then an
+infinite loop will occur, that will crash the game.

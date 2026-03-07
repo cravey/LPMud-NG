@@ -1,0 +1,6 @@
+umask 2
+cd /home/lpmud
+echo -n "Starting lpmud. " >> mudlib/lpmud.log
+date >> mudlib/lpmud.log
+rm LP_SWAP.evturtle
+./parse >> mudlib/lpmud.log &

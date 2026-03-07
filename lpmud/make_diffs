@@ -1,0 +1,10 @@
+dirs=`find . -type d -print | grep -v players | grep -v mudlib/log`
+cd ..
+rm -f only
+for i in $dirs
+do
+    echo $i:
+    diff -c old/$i new/$i > tmp
+    grep '^Only' tmp >> only
+    grep -v '^Only' tmp | grep -v '^Common' > dif.`basename $i`
+done
