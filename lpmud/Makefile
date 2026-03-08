@@ -97,7 +97,8 @@ clean:
 	rm -f *.plist
 	rm -f parse debug core frontend mudlib/core mudlib/debug.log TAGS
 	rm -f lpmud.log
-#	find . -name '*.i' -print -exec rm -f \{} \;
+	rm -rf tests/reports/*
+	find . -name '*.i' -print -exec rm -f \{} \;
 #	find . -name '*~' -print -exec rm -f \{} \;
 #	find . -name '*#' -print -exec rm -f \{} \;
 #	find . -name '*.orig' -print -exec rm -f \{} \;

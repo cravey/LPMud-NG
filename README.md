@@ -37,3 +37,24 @@ lpmud 2.4.5 playground to play with Claude Code and GPT codex on a legacy codeba
 
 10. Current status
 - Latest verification pass showed `make ci` succeeding with tracked hard analyzer issues resolved.
+
+## Driver-Focused Test Suites
+
+The repository includes three complementary test paths focused on code that runs on top of `parse`:
+
+1. Dedicated LPC engine test mudlib (`lpmud/test-mudlib`)
+- Purpose: deterministic, low-noise driver/efun validation through one `runtests` command.
+- Entry point: `cd lpmud && ./tests/run_test_mudlib_suite.sh`
+- Docs: `lpmud/test-mudlib/README.md`
+
+2. Classic mudlib functional network suite
+- Purpose: end-to-end gameplay/session checks against the regular `mudlib` using `nc` + `expect`.
+- Entry point: `cd lpmud && ./tests/run_engine_functional_suite.sh`
+- Harness: `lpmud/tests/nc_engine_suite.exp`
+
+3. Static mudlib analysis tooling
+- Purpose: heuristic reports for monster difficulty/weapon drops and LPC feature usage.
+- Entry point: `cd lpmud && python3 tests/analyze_mudlib.py --mudlib-root mudlib --output-dir tests/reports/static_only`
+- Docs: `lpmud/tests/README.md`
+
+All generated test artifacts are written under `lpmud/tests/reports/`.

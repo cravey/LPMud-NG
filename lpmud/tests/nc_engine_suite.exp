@@ -1,0 +1,155 @@
+#!/usr/bin/expect -f
+
+# Integration suite for LPmud driver/mudlib using nc localhost:2000.
+# This intentionally exercises runtime behavior through user-visible commands.
+
+set timeout 25
+
+set host "127.0.0.1"
+set port "2000"
+set user "codex_test"
+set pass "codex_pass_123"
+set scenario "new"
+set transcript ""
+
+for {set i 0} {$i < $argc} {incr i} {
+    set arg [lindex $argv $i]
+    if {$arg eq "--host"} {
+        incr i
+        set host [lindex $argv $i]
+    } elseif {$arg eq "--port"} {
+        incr i
+        set port [lindex $argv $i]
+    } elseif {$arg eq "--user"} {
+        incr i
+        set user [lindex $argv $i]
+    } elseif {$arg eq "--pass"} {
+        incr i
+        set pass [lindex $argv $i]
+    } elseif {$arg eq "--scenario"} {
+        incr i
+        set scenario [lindex $argv $i]
+    } elseif {$arg eq "--transcript"} {
+        incr i
+        set transcript [lindex $argv $i]
+    } else {
+        puts stderr "Unknown arg: $arg"
+        exit 64
+    }
+}
+
+if {$transcript ne ""} {
+    log_file -a $transcript
+}
+
+proc fail {msg} {
+    puts stderr "FAIL: $msg"
+    exit 2
+}
+
+proc expect_re {pattern context {t 25}} {
+    global timeout
+    set timeout $t
+    expect {
+        -re $pattern { return 1 }
+        timeout { fail "$context (timeout, pattern: $pattern)" }
+        eof { fail "$context (unexpected EOF, pattern: $pattern)" }
+    }
+}
+
+proc send_cmd_expect {cmd pattern context {t 25}} {
+    send -- "$cmd\r"
+    expect_re $pattern $context $t
+}
+
+proc login_new {user pass} {
+    expect_re "What is your name: ?" "awaiting login name prompt"
+    send -- "$user\r"
+    expect_re "Password:" "awaiting first password prompt"
+    send -- "$pass\r"
+    expect_re "Password: \\(again\\)" "awaiting password confirmation"
+    send -- "$pass\r"
+    expect_re "email address" "awaiting email prompt"
+    send -- "none\r"
+    expect_re "male, female or other" "awaiting gender prompt"
+    send -- "m\r"
+    # Synchronize on known room output before running checks.
+    send_cmd_expect "look" "(local village church|Village church)" "look in church after new login"
+}
+
+proc login_existing {user pass} {
+    expect_re "What is your name: ?" "awaiting login name prompt"
+    send -- "$user\r"
+    expect_re "Password:" "awaiting password prompt"
+    send -- "$pass\r"
+    # Existing users may not auto-print location text consistently.
+    send_cmd_expect "look" "(local village church|Village church)" "look in church after existing login"
+}
+
+proc run_new_session_checks {} {
+    send_cmd_expect "score" "experience points" "score output after login"
+    send_cmd_expect "south" "(open green place south of the village church|Village green)" "move to village green"
+    send_cmd_expect "west" "(old humpbacked bridge|Humpbacked bridge)" "move to hump bridge"
+    send_cmd_expect "get stick" "Ok\\." "pick up torch stick"
+    send_cmd_expect "get coins" "Ok\\." "pick up coins object"
+    send_cmd_expect "score" "10 gold coins" "verify money gain from room pickup"
+
+    send_cmd_expect "east" "(open green place south of the village church|Village green)" "return to village green"
+    send_cmd_expect "east" "(track going into the village|Village track)" "move to village track"
+    send_cmd_expect "east" "(long road going east through the village|Village road)" "move to village road1"
+    send_cmd_expect "north" "(small yard surrounded by houses|Small yard)" "move to yard"
+    send_cmd_expect "get knife" "Ok\\." "pick up knife weapon"
+    send_cmd_expect "wield knife" "Ok\\." "wield knife"
+
+    send_cmd_expect "south" "(long road going east through the village|Village road)" "return to village road1"
+    send_cmd_expect "east" "(A long road going through the village|Village road)" "move to village road2"
+    send_cmd_expect "say hello" "Harry says:" "NPC react to player speech"
+    send_cmd_expect "down" "(Central point|central point)" "move down to station"
+    send_cmd_expect "up" "(A long road going through the village|Village road)" "return up to village road2"
+
+    send_cmd_expect "west" "(long road going east through the village|Village road)" "move west to village road1"
+    send_cmd_expect "west" "(track going into the village|Village track)" "move west to village track"
+    send_cmd_expect "west" "(open green place south of the village church|Village green)" "move west to village green"
+    send_cmd_expect "north" "(local village church|Village church)" "move north to church"
+
+    # Elevator + heartbeat path (movement timing + room transitions).
+    send_cmd_expect "open door" "Ok\\." "open church elevator door"
+    send_cmd_expect "west" "elevator" "enter elevator from church"
+    send_cmd_expect "close door" "Ok\\." "close elevator door before floor change"
+    send_cmd_expect "press 3" "(jerks upward|starts moving downward)" "start elevator movement to level 3" 30
+    expect_re "elevator slows down and stops" "elevator arrives at destination" 60
+    send_cmd_expect "open door" "Ok\\." "open elevator door at level 3"
+    send_cmd_expect "east" "(attic above the church|The attic)" "enter attic"
+    send_cmd_expect "west" "elevator" "return from attic to elevator"
+    send_cmd_expect "close door" "Ok\\." "close elevator door before return floor change"
+    send_cmd_expect "press 2" "(starts moving downward|jerks upward)" "start elevator movement to level 2" 30
+    expect_re "elevator slows down and stops" "elevator returns to church level" 60
+    send_cmd_expect "open door" "Ok\\." "open elevator door at level 2"
+    send_cmd_expect "east" "(local village church|Village church)" "return to church"
+    send_cmd_expect "look at clock" "clock shows" "query dynamic reboot clock text"
+    send_cmd_expect "look at door" "The door is (open|closed)\\." "inspect church door state"
+}
+
+proc run_existing_session_checks {} {
+    send_cmd_expect "score" "10 gold coins" "verify persisted money after reconnect"
+    send_cmd_expect "who" "the .+ \\(.+\\)" "who command output"
+}
+
+spawn nc $host $port
+
+if {$scenario eq "new"} {
+    login_new $user $pass
+    run_new_session_checks
+    send_cmd_expect "quit" "Saving" "quit new-session user"
+} elseif {$scenario eq "existing"} {
+    login_existing $user $pass
+    run_existing_session_checks
+    send_cmd_expect "quit" "Saving" "quit existing-session user"
+} else {
+    fail "unknown scenario '$scenario'"
+}
+
+expect {
+    eof { exit 0 }
+    timeout { exit 0 }
+}

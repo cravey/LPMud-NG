@@ -1,0 +1,10 @@
+#
+# Objects to preload for engine-test mudlib startup.
+#
+room/church
+room/lab
+obj/test_dummy
+obj/state_blob
+obj/hb_probe
+obj/msg_sink
+obj/light_probe

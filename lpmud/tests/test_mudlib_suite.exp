@@ -1,0 +1,100 @@
+#!/usr/bin/expect -f
+
+set timeout 30
+
+set host "127.0.0.1"
+set port "2000"
+set user "tester"
+set transcript ""
+
+for {set i 0} {$i < $argc} {incr i} {
+    set arg [lindex $argv $i]
+    if {$arg eq "--host"} {
+        incr i
+        set host [lindex $argv $i]
+    } elseif {$arg eq "--port"} {
+        incr i
+        set port [lindex $argv $i]
+    } elseif {$arg eq "--user"} {
+        incr i
+        set user [lindex $argv $i]
+    } elseif {$arg eq "--transcript"} {
+        incr i
+        set transcript [lindex $argv $i]
+    } else {
+        puts stderr "Unknown arg: $arg"
+        exit 64
+    }
+}
+
+if {$transcript ne ""} {
+    log_file -a $transcript
+}
+
+proc fail {msg} {
+    puts stderr "FAIL: $msg"
+    exit 2
+}
+
+set fail_lines {}
+set summary_seen 0
+set total 0
+set passed 0
+set failed 0
+set duration 0
+
+spawn nc $host $port
+
+expect {
+    -re "Login name.*:" {}
+    timeout { fail "timeout waiting for login prompt" }
+    eof { fail "unexpected EOF before login prompt" }
+}
+send -- "$user\r"
+
+expect {
+    -re "Type 'help' for commands" {}
+    timeout { fail "timeout waiting for post-login banner" }
+    eof { fail "unexpected EOF after login" }
+}
+
+send -- "runtests\r"
+
+while {!$summary_seen} {
+    expect {
+        -re {\[FAIL\]\[[^\]]+\].*} {
+            lappend fail_lines $expect_out(0,string)
+            exp_continue
+        }
+        -re {\[ACTION\]\[ASYNC-003\] Enter token: ([A-Za-z0-9_\-]+)} {
+            set token $expect_out(1,string)
+            send -- "$token\r"
+            exp_continue
+        }
+        -re {TEST_SUMMARY total=([0-9]+) pass=([0-9]+) fail=([0-9]+) duration=([0-9]+)s} {
+            set total $expect_out(1,string)
+            set passed $expect_out(2,string)
+            set failed $expect_out(3,string)
+            set duration $expect_out(4,string)
+            set summary_seen 1
+        }
+        timeout { fail "timeout waiting for TEST_SUMMARY" }
+        eof { fail "unexpected EOF waiting for TEST_SUMMARY" }
+    }
+}
+
+if {$failed != 0 || [llength $fail_lines] > 0} {
+    puts stderr "FAIL: suite reported failures (total=$total pass=$passed fail=$failed duration=${duration}s)"
+    foreach line $fail_lines {
+        puts stderr $line
+    }
+    exit 2
+}
+
+puts "SUITE_RESULT total=$total pass=$passed fail=$failed duration=${duration}s"
+send -- "quit\r"
+
+expect {
+    eof { exit 0 }
+    timeout { exit 0 }
+}
