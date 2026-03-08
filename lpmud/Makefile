@@ -27,15 +27,24 @@ YFLAGS=-d
 # redefine 'LEX=lex'.
 LEX=lex
 #LEX=flex
+UNAME_S := $(shell uname -s)
 CC ?= cc
-CPPFLAGS ?= -I.
+PLATFORM_CPPFLAGS :=
+ifeq ($(UNAME_S),Linux)
+PLATFORM_CPPFLAGS += -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L
+endif
+CPPFLAGS ?= -I. $(PLATFORM_CPPFLAGS)
 BASE_CFLAGS ?= -std=c23 -DTRACE -D$(RAND) -O -DLEX -DMALLOC_$(MALLOC)
 CFLAGS ?= $(BASE_CFLAGS) -Wno-error=implicit-function-declaration -Wno-error=implicit-int -Wno-error=return-type
 LDFLAGS ?=
 #
 # Add extra libraries here.
 #
-LIBS ?= -lm
+CRYPT_LIB ?=
+ifeq ($(UNAME_S),Linux)
+CRYPT_LIB = -lcrypt
+endif
+LIBS ?= -lm $(CRYPT_LIB)
 
 # CI hardening profiles.
 CI_STRICT_CFLAGS ?= -Wall -Wextra -Wpedantic -Werror -Wno-sign-compare

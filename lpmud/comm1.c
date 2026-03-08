@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -643,13 +644,13 @@ allow_host_access(int new_socket)
 	    while(fgets(buf, sizeof buf - 1, f)) {
 		if(*buf != '#') {
 		    ipn[0] = hname[0] = comment[0] = 0;
-		    if ((pindex = index(buf, ':')) != 0) *pindex = 0;
+		    if ((pindex = strchr(buf, ':')) != 0) *pindex = 0;
 		    p1 = pindex;
 		    if(buf[0] && buf[0] != '\n')
 			(void)strncpy(ipn, buf, sizeof ipn - 1);
 		    ipn[sizeof ipn - 1] = '\0';
 		    if((p2 = p1) && *++p2) {
-			if ((pindex = index(p2, ':')) != 0) *pindex = 0;
+			if ((pindex = strchr(p2, ':')) != 0) *pindex = 0;
 			p1 = pindex;
 			if(p2[0] && p2[0] != '\n')
 			    (void)strncpy(hname, p2, sizeof hname - 1);

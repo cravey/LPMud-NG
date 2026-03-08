@@ -1,6 +1,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/dir.h>
+#include <dirent.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -1134,7 +1134,7 @@ void list_files(char *path, char *flags)
     char buff[160];	/* Will never need more than two lines */
     int i, max, lines, num, j, truncated = 0, pos;
     DIR *dirp;
-    struct direct *de;
+    struct dirent *de;
     char **names, name_buffer[MAX_LINES * 80];
     struct stat st;
     char regexp[80], *p, path2[100];
@@ -1175,7 +1175,7 @@ void list_files(char *path, char *flags)
      * First step, find the number of file names.
      */
     for(de = readdir(dirp); de; de = readdir(dirp)) {
-	int dlen = de->d_namlen;
+	int dlen = strlen(de->d_name);
 	if (!do_match && (strcmp(de->d_name, ".") == 0 ||
 			  strcmp(de->d_name, "..") == 0))
 	    continue;
@@ -1208,7 +1208,7 @@ void list_files(char *path, char *flags)
     names = (char **)xalloc(num * sizeof (char *));
     rewinddir(dirp);
     for(pos=0, i=0, de = readdir(dirp); i < num; de = readdir(dirp)) {
-	int dlen = de->d_namlen;
+	int dlen = strlen(de->d_name);
 	if (!do_match && (strcmp(de->d_name, ".") == 0 ||
 			  strcmp(de->d_name, "..") == 0))
 	    continue;
