@@ -50,7 +50,8 @@ LIBS ?= -lm $(CRYPT_LIB)
 CI_STRICT_CFLAGS ?= -Wall -Wextra -Wpedantic -Werror -Wno-sign-compare
 CI_SANITIZE_FLAGS ?= -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -Wno-sign-compare -Wno-deprecated-declarations
 CI_ANALYZE_FLAGS ?= -std=c23 $(CPPFLAGS) -DTRACE -D$(RAND) -DLEX -DMALLOC_$(MALLOC) -Wno-sign-compare -Wno-deprecated-declarations
-ANALYZE_SOURCES = $(filter %.c,$(SRC)) lang.c lexical.c comm2.c frontend.c count_active.c
+# Analyze only hand-maintained sources; yacc/lex output is generated and noisy.
+ANALYZE_SOURCES = $(filter %.c,$(SRC)) comm2.c frontend.c count_active.c
 #
 # Add str.c here if you don't have memcpy() or strtol()
 #
