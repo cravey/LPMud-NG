@@ -18,8 +18,6 @@
 #include "sent.h"
 #include "wiz_list.h"
 
-extern int errno;
-
 char *inherit_file;
 
 extern char *xalloc PROT((size_t)), *string_copy PROT((char *)),
@@ -2394,7 +2392,6 @@ void pre_compile(char *str)
 	_exit(1);
     }
     else if ((fd2 = dup2(fd, 1)) != 1) {
-	extern int errno;
 	fprintf(stderr, "FATAL: failed to dup2. fd2 = %d, errno = %d, fd = %d\n",
 		fd2, errno, fd);
 	_exit(1);

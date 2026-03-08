@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
 #include "lint.h"
 #include "interpret.h"
 #include "object.h"
@@ -359,8 +360,6 @@ void load_ob_from_swap(struct object *ob)
     char *buffer;
     struct lnode_def *pr;
     struct lnode_2 *swap_node;
-    extern int errno;
-
     tmp_ob = ob;
     if (ob->swap_num == -1)
 	fatal("Loading not swapped object.\n");
