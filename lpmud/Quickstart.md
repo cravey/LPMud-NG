@@ -71,6 +71,15 @@ Key files:
 - [`comm.h`](comm.h)
 - [`backend.c`](backend.c)
 
+Runtime networking environment variables:
+
+- `MUD_BIND_ADDR`: listener bind target (`127.0.0.1` default, `*`/`0.0.0.0` for all interfaces).
+- `MUD_SSL`: optional TLS toggle (`0`/unset = plain TCP, non-zero = TLS mode).
+- `MUD_SSL_CERT_FILE`: PEM certificate path (required when `MUD_SSL` is enabled).
+- `MUD_SSL_KEY_FILE`: PEM private key path (required when `MUD_SSL` is enabled).
+- `MUD_SSL_CA_FILE`: PEM CA bundle used for optional client certificate verification.
+- `MUD_SSL_VERIFY_CLIENT`: enable client cert validation when set to a truthy value; requires `MUD_SSL_CA_FILE`.
+
 ### Persistence
 
 - Driver-level persistence interfaces:

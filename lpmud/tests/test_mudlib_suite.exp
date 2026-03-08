@@ -6,6 +6,8 @@ set host "127.0.0.1"
 set port "2000"
 set user "tester"
 set transcript ""
+set client "nc"
+set sni "localhost"
 
 for {set i 0} {$i < $argc} {incr i} {
     set arg [lindex $argv $i]
@@ -21,6 +23,12 @@ for {set i 0} {$i < $argc} {incr i} {
     } elseif {$arg eq "--transcript"} {
         incr i
         set transcript [lindex $argv $i]
+    } elseif {$arg eq "--client"} {
+        incr i
+        set client [lindex $argv $i]
+    } elseif {$arg eq "--sni"} {
+        incr i
+        set sni [lindex $argv $i]
     } else {
         puts stderr "Unknown arg: $arg"
         exit 64
@@ -43,7 +51,13 @@ set passed 0
 set failed 0
 set duration 0
 
-spawn nc $host $port
+if {$client eq "nc"} {
+    spawn nc $host $port
+} elseif {$client eq "openssl"} {
+    spawn openssl s_client -quiet -connect "${host}:$port" -servername $sni
+} else {
+    fail "unknown client '$client' (expected nc or openssl)"
+}
 
 expect {
     -re "Login name.*:" {}

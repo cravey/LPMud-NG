@@ -44,7 +44,31 @@ CRYPT_LIB ?=
 ifeq ($(UNAME_S),Linux)
 CRYPT_LIB = -lcrypt
 endif
-LIBS ?= -lm $(CRYPT_LIB)
+USE_SSL ?= 0
+OPENSSL_ROOT ?=
+ifeq ($(OPENSSL_ROOT),)
+ifneq ("$(wildcard /opt/homebrew/opt/openssl@3/include/openssl/ssl.h)","")
+OPENSSL_ROOT := /opt/homebrew/opt/openssl@3
+else ifneq ("$(wildcard /usr/local/opt/openssl@3/include/openssl/ssl.h)","")
+OPENSSL_ROOT := /usr/local/opt/openssl@3
+else ifneq ("$(wildcard /opt/local/include/openssl/ssl.h)","")
+OPENSSL_ROOT := /opt/local
+endif
+endif
+SSL_CPPFLAGS :=
+SSL_LIBS :=
+ifeq ($(USE_SSL),1)
+SSL_CPPFLAGS += -DUSE_SSL
+ifneq ($(OPENSSL_ROOT),)
+SSL_CPPFLAGS += -I$(OPENSSL_ROOT)/include
+SSL_LIBS += -L$(OPENSSL_ROOT)/lib
+endif
+SSL_LIBS += -lssl -lcrypto
+endif
+CPPFLAGS += $(SSL_CPPFLAGS)
+LIBS ?= -lm $(CRYPT_LIB) $(SSL_LIBS)
+BUILD_MODE_FILE := .build_mode
+BUILD_MODE_VALUE := USE_SSL=$(USE_SSL);OPENSSL_ROOT=$(OPENSSL_ROOT)
 
 # CI hardening profiles.
 CI_STRICT_CFLAGS ?= -Wall -Wextra -Wpedantic -Werror -Wno-sign-compare
@@ -65,11 +89,28 @@ OBJ=lang.o lexical.o main.o lnode.o interpret.o simulate.o object.o backend.o\
     comm1.o ed.o regexp.o wiz_list.o swap.o string_space.o $(MALLOC).o \
     call_out.o parse.o otable.o dumpstat.o stralloc.o
 
-debug: $(OBJ)
+debug: build-mode-check debug-internal
+
+debug-internal: $(OBJ)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(OBJ) -o debug $(LIBS)
 
-parse: $(OBJ)
+parse: build-mode-check parse-internal
+
+parse-internal: $(OBJ)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(OBJ) -o parse $(LIBS)
+
+.PHONY: build-mode-check
+
+build-mode-check:
+	@prev=""; \
+	if [ -f $(BUILD_MODE_FILE) ]; then prev=$$(cat $(BUILD_MODE_FILE)); fi; \
+	if [ "$$prev" != "$(BUILD_MODE_VALUE)" ]; then \
+		if [ -n "$$prev" ]; then \
+			echo "Build mode changed ($$prev -> $(BUILD_MODE_VALUE)); cleaning stale objects"; \
+			rm -f *.o *.plist parse debug count_active frontend y.tab.h lang.c lexical.c; \
+		fi; \
+		echo "$(BUILD_MODE_VALUE)" > $(BUILD_MODE_FILE); \
+	fi
 
 lint: *.c
 	lint *.c
@@ -96,6 +137,7 @@ clean:
 	rm -f *.o y.tab.h lang.c lexical.c *.ln mon.out
 	rm -f *.plist
 	rm -f parse debug core frontend mudlib/core mudlib/debug.log TAGS
+	rm -f $(BUILD_MODE_FILE)
 	rm -f lpmud.log
 	rm -rf tests/reports/*
 	find . -name '*.i' -print -exec rm -f \{} \;
@@ -112,7 +154,7 @@ comm1.o: comm.h sent.h interpret.h object.h config.h
 
 comm2.o: config.h comm.h
 
-frontend: comm2.o frontend.o
+frontend: build-mode-check comm2.o frontend.o
 	$(CC) $(CFLAGS) $(LDFLAGS) comm2.o frontend.o -o frontend $(LIBS)
 
 frontend.o: frontend.c config.h comm.h
@@ -135,7 +177,7 @@ TAGS: $(SRC)
 diff:
 	make_diffs
 
-count_active: count_active.o
+count_active: build-mode-check count_active.o
 	$(CC) $(CFLAGS) $(LDFLAGS) count_active.o -o count_active $(LIBS)
 
 ci-warnings:

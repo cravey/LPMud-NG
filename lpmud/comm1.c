@@ -20,6 +20,10 @@
 #ifdef aix
 #include <sys/select.h>
 #endif
+#ifdef USE_SSL
+#include <openssl/err.h>
+#include <openssl/ssl.h>
+#endif
 #include "lint.h"
 #include "interpret.h"
 #include "comm.h"
@@ -49,6 +53,7 @@ struct interactive *all_players[MAX_PLAYERS];
 void new_player PROT((int, struct sockaddr_in *, socklen_t));
 
 fd_set readfds;
+fd_set writefds;
 int nfds = 0;
 int num_player;
 
@@ -58,12 +63,261 @@ int num_player;
 
 static int s;
 extern int port_number;
+static int mud_ssl_enabled = 0;
+
+#ifdef USE_SSL
+static SSL_CTX *mud_ssl_ctx = 0;
+#endif
+
+static int env_flag_enabled(const char *name)
+{
+    const char *value = getenv(name);
+
+    if (value == 0 || value[0] == '\0')
+	return 0;
+    if (strcmp(value, "0") == 0 ||
+	strcasecmp(value, "false") == 0 ||
+	strcasecmp(value, "no") == 0 ||
+	strcasecmp(value, "off") == 0)
+	return 0;
+    return 1;
+}
+
+static void set_socket_nonblocking(int fd, const char *label)
+{
+#ifdef sun
+    int tmp = 1;
+
+    if (ioctl(fd, FIONBIO, &tmp) == -1) {
+	perror(label);
+	abort();
+    }
+#else /* sun */
+    if (fcntl(fd, F_SETFL, FNDELAY) == -1) {
+	perror(label);
+	abort();
+    }
+#endif /* sun */
+}
+
+#ifdef USE_SSL
+static void report_ssl_errors(const char *label)
+{
+    fprintf(stderr, "%s\n", label);
+    ERR_print_errors_fp(stderr);
+}
+
+static int setup_ssl_context(void)
+{
+    const char *cert_file = getenv("MUD_SSL_CERT_FILE");
+    const char *key_file = getenv("MUD_SSL_KEY_FILE");
+    const char *ca_file = getenv("MUD_SSL_CA_FILE");
+    int verify_client = env_flag_enabled("MUD_SSL_VERIFY_CLIENT");
+
+    if (cert_file == 0 || cert_file[0] == '\0')
+	fatal("MUD_SSL=1 requires MUD_SSL_CERT_FILE.\n");
+    if (key_file == 0 || key_file[0] == '\0')
+	fatal("MUD_SSL=1 requires MUD_SSL_KEY_FILE.\n");
+    if (verify_client && (ca_file == 0 || ca_file[0] == '\0'))
+	fatal("MUD_SSL_VERIFY_CLIENT=1 requires MUD_SSL_CA_FILE.\n");
+
+    if (OPENSSL_init_ssl(0, 0) != 1)
+	fatal("OPENSSL_init_ssl failed.\n");
+    mud_ssl_ctx = SSL_CTX_new(TLS_server_method());
+    if (mud_ssl_ctx == 0) {
+	report_ssl_errors("SSL_CTX_new failed.");
+	fatal("Failed to initialize SSL context.\n");
+    }
+#ifdef TLS1_2_VERSION
+    (void)SSL_CTX_set_min_proto_version(mud_ssl_ctx, TLS1_2_VERSION);
+#endif
+    if (SSL_CTX_use_certificate_file(mud_ssl_ctx, cert_file,
+				     SSL_FILETYPE_PEM) != 1) {
+	report_ssl_errors("SSL_CTX_use_certificate_file failed.");
+	fatal("Failed to load SSL certificate.\n");
+    }
+    if (SSL_CTX_use_PrivateKey_file(mud_ssl_ctx, key_file,
+				    SSL_FILETYPE_PEM) != 1) {
+	report_ssl_errors("SSL_CTX_use_PrivateKey_file failed.");
+	fatal("Failed to load SSL private key.\n");
+    }
+    if (SSL_CTX_check_private_key(mud_ssl_ctx) != 1)
+	fatal("SSL certificate/key mismatch.\n");
+    if (ca_file && ca_file[0]) {
+	if (SSL_CTX_load_verify_locations(mud_ssl_ctx, ca_file, 0) != 1) {
+	    report_ssl_errors("SSL_CTX_load_verify_locations failed.");
+	    fatal("Failed to load SSL CA file.\n");
+	}
+    }
+    if (verify_client) {
+	SSL_CTX_set_verify(mud_ssl_ctx,
+			   SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
+			   0);
+    } else {
+	SSL_CTX_set_verify(mud_ssl_ctx, SSL_VERIFY_NONE, 0);
+    }
+    fprintf(stderr, "SSL enabled: cert=%s key=%s%s\n",
+	    cert_file, key_file, verify_client ? " verify-client=on" : "");
+    return 0;
+}
+
+static int setup_player_ssl(struct interactive *ip)
+{
+    if (!mud_ssl_ctx)
+	return -1;
+    ip->ssl = SSL_new(mud_ssl_ctx);
+    if (!ip->ssl) {
+	report_ssl_errors("SSL_new failed.");
+	return -1;
+    }
+    if (SSL_set_fd(ip->ssl, ip->socket) != 1) {
+	report_ssl_errors("SSL_set_fd failed.");
+	SSL_free(ip->ssl);
+	ip->ssl = 0;
+	return -1;
+    }
+    SSL_set_accept_state(ip->ssl);
+    ip->ssl_handshake_done = 0;
+    ip->ssl_want_read = 1;
+    ip->ssl_want_write = 0;
+    ip->ssl_logon_pending = 1;
+    return 0;
+}
+
+static void teardown_player_ssl(struct interactive *ip)
+{
+    if (!ip->ssl)
+	return;
+    if (ip->ssl_handshake_done)
+	(void)SSL_shutdown(ip->ssl);
+    SSL_free(ip->ssl);
+    ip->ssl = 0;
+    ip->ssl_handshake_done = 0;
+    ip->ssl_want_read = 0;
+    ip->ssl_want_write = 0;
+    ip->ssl_logon_pending = 0;
+}
+
+static int drive_player_ssl_accept(struct interactive *ip)
+{
+    int ret;
+    int err;
+
+    if (!ip->ssl || ip->ssl_handshake_done)
+	return 1;
+    ret = SSL_accept(ip->ssl);
+    if (ret == 1) {
+	ip->ssl_handshake_done = 1;
+	ip->ssl_want_read = 0;
+	ip->ssl_want_write = 0;
+	return 1;
+    }
+    err = SSL_get_error(ip->ssl, ret);
+    ip->ssl_want_read = 0;
+    ip->ssl_want_write = 0;
+    if (err == SSL_ERROR_WANT_READ) {
+	ip->ssl_want_read = 1;
+	return 0;
+    }
+    if (err == SSL_ERROR_WANT_WRITE) {
+	ip->ssl_want_write = 1;
+	return 0;
+    }
+    report_ssl_errors("SSL_accept failed.");
+    return -1;
+}
+#endif /* USE_SSL */
+
+static int player_read(struct interactive *ip, char *buf, int size)
+{
+#ifdef USE_SSL
+    if (ip->ssl) {
+	int ret = SSL_read(ip->ssl, buf, size);
+	int err;
+
+	if (ret > 0) {
+	    ip->ssl_want_read = 0;
+	    ip->ssl_want_write = 0;
+	    return ret;
+	}
+	if (ret == 0)
+	    return 0;
+	err = SSL_get_error(ip->ssl, ret);
+	ip->ssl_want_read = 0;
+	ip->ssl_want_write = 0;
+	if (err == SSL_ERROR_WANT_READ) {
+	    ip->ssl_want_read = 1;
+	    errno = EWOULDBLOCK;
+	    return -1;
+	}
+	if (err == SSL_ERROR_WANT_WRITE) {
+	    ip->ssl_want_write = 1;
+	    errno = EWOULDBLOCK;
+	    return -1;
+	}
+	if (err == SSL_ERROR_ZERO_RETURN)
+	    return 0;
+	errno = EIO;
+	return -1;
+    }
+#endif
+    return read(ip->socket, buf, size);
+}
+
+static int player_write(struct interactive *ip, char *buf, int size)
+{
+#ifdef USE_SSL
+    if (ip->ssl) {
+	int ret = SSL_write(ip->ssl, buf, size);
+	int err;
+
+	if (ret > 0) {
+	    ip->ssl_want_read = 0;
+	    ip->ssl_want_write = 0;
+	    return ret;
+	}
+	if (ret == 0) {
+	    errno = EPIPE;
+	    return -1;
+	}
+	err = SSL_get_error(ip->ssl, ret);
+	ip->ssl_want_read = 0;
+	ip->ssl_want_write = 0;
+	if (err == SSL_ERROR_WANT_READ) {
+	    ip->ssl_want_read = 1;
+	    errno = EWOULDBLOCK;
+	    return -1;
+	}
+	if (err == SSL_ERROR_WANT_WRITE) {
+	    ip->ssl_want_write = 1;
+	    errno = EWOULDBLOCK;
+	    return -1;
+	}
+	if (err == SSL_ERROR_ZERO_RETURN) {
+	    errno = EPIPE;
+	    return -1;
+	}
+	errno = EIO;
+	return -1;
+    }
+#endif
+    return write(ip->socket, buf, size);
+}
 
 void prepare_ipc() {
     struct sockaddr_in sin;
     int tmp;
     char host_name[100];
     const char *bind_addr;
+
+    mud_ssl_enabled = env_flag_enabled("MUD_SSL");
+#ifdef USE_SSL
+    if (mud_ssl_enabled)
+	setup_ssl_context();
+#else
+    if (mud_ssl_enabled)
+	fatal("MUD_SSL=1 requested, but parse was built without USE_SSL=1.\n");
+#endif
 
     if (gethostname(host_name, sizeof host_name) == -1) {
         perror("gethostname");
@@ -114,18 +368,7 @@ void prepare_ipc() {
 	perror("listen");
 	abort();
     }
-    tmp = 1;
-#ifdef sun
-    if (ioctl(s, FIONBIO, &tmp) == -1) {
-	perror("ioctl socket FIONBIO");
-	abort();
-    }
-#else /* sun */
-    if (fcntl(s, F_SETFL, FNDELAY) == -1) {
-	perror("ioctl socket FIONBIO");
-	abort();
-    }
-#endif /* sun */
+    set_socket_nonblocking(s, "ioctl socket FIONBIO");
     signal(SIGPIPE, SIG_IGN);
 }
 
@@ -135,6 +378,12 @@ void prepare_ipc() {
 void ipc_remove() {
     (void)printf("Shutting down ipc...\n");
     close(s);
+#ifdef USE_SSL
+    if (mud_ssl_ctx) {
+	SSL_CTX_free(mud_ssl_ctx);
+	mud_ssl_ctx = 0;
+    }
+#endif
 }
 
 /*
@@ -196,7 +445,7 @@ void add_message(char *fmt, ...)
 	chunk = length;
 	if (chunk > MAX_SOCKET_PACKET_SIZE)
 	    chunk = MAX_SOCKET_PACKET_SIZE;
-	if ((n = write(ip->socket, buff2 + offset, chunk)) == -1) {
+	if ((n = player_write(ip, buff2 + offset, chunk)) == -1) {
 	    if (errno == EMSGSIZE) {
 		fprintf(stderr, "comm1: write EMSGSIZE.\n");
 		return;
@@ -221,8 +470,12 @@ void add_message(char *fmt, ...)
 		ip->do_close = 1;
 		return;
 	    }
-	    if (errno == EWOULDBLOCK) {
+	    if (errno == EWOULDBLOCK || errno == EAGAIN) {
 		fprintf(stderr, "comm1: write EWOULDBLOCK. Message discarded.\n");
+#ifdef USE_SSL
+		if (ip->ssl)
+		    return;
+#endif
 		ip->do_close = 1;
 		return;
 	    }
@@ -314,6 +567,7 @@ int get_message(char *buff, int size)
 
 	nfds = 0;
 	FD_ZERO(&readfds);
+	FD_ZERO(&writefds);
 	for (i=0; i<MAX_PLAYERS; i++) {
 	    ip = all_players[i];
 	    if (!ip)
@@ -324,7 +578,17 @@ int get_message(char *buff, int size)
 		continue;
 	    }
 	    if (!first_cmd_in_buf(ip)) {
-		FD_SET(ip->socket, &readfds);
+#ifdef USE_SSL
+		if (ip->ssl) {
+		    if (ip->ssl_want_write)
+			FD_SET(ip->socket, &writefds);
+		    if (ip->ssl_want_read || !ip->ssl_want_write)
+			FD_SET(ip->socket, &readfds);
+		} else
+#endif
+		{
+		    FD_SET(ip->socket, &readfds);
+		}
 		if (ip->socket >= nfds)
 		    nfds = ip->socket+1;
 		if (ip->out_portal) {
@@ -336,7 +600,7 @@ int get_message(char *buff, int size)
 	}
 	timeout.tv_sec = twait; /* avoid busy waiting when no buffered cmds */
 	timeout.tv_usec = 0;
-	res = select(nfds, &readfds, 0, 0, &timeout);
+	res = select(nfds, &readfds, &writefds, 0, &timeout);
 	if (res == -1) {
 	    twait = 0;
 	    if (errno == EINTR) /* if we got an alarm, finish the round */
@@ -349,8 +613,37 @@ int get_message(char *buff, int size)
 		struct interactive *ip = all_players[i];
 		if (ip == 0)
 		    continue;
-			if (FD_ISSET(ip->socket, &readfds)) { /* read this player */
-			    int l, room, read_size, added;
+		if (ip->do_close) {
+		    ip->do_close = 0;
+		    remove_interactive(ip->ob);
+		    continue;
+		}
+#ifdef USE_SSL
+		if (ip->ssl && !ip->ssl_handshake_done) {
+		    if (FD_ISSET(ip->socket, &readfds) ||
+			FD_ISSET(ip->socket, &writefds)) {
+			int hs = drive_player_ssl_accept(ip);
+			if (hs < 0) {
+			    ip->do_close = 1;
+			    continue;
+			}
+			if (hs == 0)
+			    continue;
+			if (ip->ssl_logon_pending) {
+			    ip->ssl_logon_pending = 0;
+			    logon(ip->ob);
+			}
+		    }
+		    if (!ip->ssl_handshake_done)
+			continue;
+		}
+#endif
+		if (FD_ISSET(ip->socket, &readfds)
+#ifdef USE_SSL
+		    || (ip->ssl && FD_ISSET(ip->socket, &writefds))
+#endif
+		   ) { /* read this player */
+		    int l, room, read_size, added;
 
 			    /* dont overfill their buffer */
 			    room = MAX_TEXT - ip->text_end - 1;
@@ -362,7 +655,7 @@ int get_message(char *buff, int size)
 			    if (room < read_size)
 				read_size = room;
 
-			    if ((l = read(ip->socket, buff, read_size)) == -1) {
+		    if ((l = player_read(ip, buff, read_size)) == -1) {
 			if (errno == ENETUNREACH) {
 			    debug_message("Net unreachable detected.\n");
 			    remove_interactive(ip->ob);
@@ -383,9 +676,13 @@ int get_message(char *buff, int size)
 			    remove_interactive(ip->ob);
 			    continue;
 			}
-			if (errno == EWOULDBLOCK) {
+			if (errno == EWOULDBLOCK || errno == EAGAIN) {
 			    debug_message("read would block socket %d!\n",
 					  ip->socket);
+#ifdef USE_SSL
+			    if (ip->ssl)
+				continue;
+#endif
 			    remove_interactive(ip->ob);
 			    continue;
 			}
@@ -600,6 +897,9 @@ void remove_interactive(struct object *ob) {
 	}
 	command_giver = ob;
 	add_message("Closing down.\n");
+#ifdef USE_SSL
+	teardown_player_ssl(ob->interactive);
+#endif
 	(void)shutdown(ob->interactive->socket, 2);
 	close(ob->interactive->socket);
 	num_player--;
@@ -760,6 +1060,7 @@ void new_player(int new_socket, struct sockaddr_in *addr, socklen_t len) {
     
     if(allow_host_access(new_socket))
 	return;
+    set_socket_nonblocking(new_socket, "ioctl player socket FIONBIO");
     if (d_flag)
 	debug_message("New player at socket %d.\n", new_socket);
     for (i=0; i<MAX_PLAYERS; i++) {
@@ -806,15 +1107,32 @@ void new_player(int new_socket, struct sockaddr_in *addr, socklen_t len) {
 	ip->noecho = 0;
 	set_prompt("> ");
 	ip->socket = new_socket;
+#ifdef USE_SSL
+	ip->ssl = 0;
+	ip->ssl_handshake_done = 0;
+	ip->ssl_want_read = 0;
+	ip->ssl_want_write = 0;
+	ip->ssl_logon_pending = 0;
+#endif
 	/* memcpy(&all_players[i]->addr, addr, len); */
 	getpeername(new_socket, (struct sockaddr *)&ip->addr,
 		    &len);
 	num_player++;
+#ifdef USE_SSL
+	if (mud_ssl_enabled) {
+	    if (setup_player_ssl(ip) < 0) {
+		ip->do_close = 1;
+		return;
+	    }
+	    return;
+	}
+#endif
 	logon(ob);
 	return;
     }
     p = "Lpmud is full. Come back later.\r\n";
-    write(new_socket, p, strlen(p));
+    if (!mud_ssl_enabled)
+	write(new_socket, p, strlen(p));
     close(new_socket);
 }
 

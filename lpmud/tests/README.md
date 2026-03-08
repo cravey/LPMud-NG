@@ -19,8 +19,13 @@ This directory contains automation for driver-centric validation and mudlib anal
 - `run_test_mudlib_suite.sh`
   - Boots `parse` against `test-mudlib/`.
   - Executes the dedicated LPC engine suite via `runtests`.
+- `run_test_mudlib_ssl_suite.sh`
+  - Builds `parse` with `USE_SSL=1`.
+  - Boots `parse` against `test-mudlib/` with `MUD_SSL=1`.
+  - Executes the dedicated LPC engine suite over TLS via `openssl s_client` + `expect`.
 - `test_mudlib_suite.exp`
   - Expect script for the dedicated `test-mudlib` suite.
+  - Supports both `nc` and `openssl s_client` clients.
   - Captures `[FAIL]` lines and enforces `fail=0`.
 - `reports/`
   - Timestamped run artifacts from the scripts above.
@@ -31,8 +36,10 @@ This directory contains automation for driver-centric validation and mudlib anal
 - `python3`
 - `expect`
 - `nc`
+- `openssl` CLI
 - `lsof`
 - `uuidgen`
+- OpenSSL development headers/libraries when using `USE_SSL=1`
 
 ## Run Static Mudlib Analysis Only
 
@@ -78,6 +85,20 @@ Expected outputs:
 - `tests/reports/test_mudlib_suite_<timestamp>/SUMMARY.txt`
 - `expect.log`, `session.log`, `parse.log`, `make_parse.log`
 - `TEST_SUMMARY ... fail=0` in logs when successful
+
+## Run Dedicated Engine Test Mudlib SSL Suite
+
+From `lpmud/`:
+
+```bash
+./tests/run_test_mudlib_ssl_suite.sh
+```
+
+Expected outputs:
+
+- `tests/reports/test_mudlib_ssl_suite_<timestamp>/SUMMARY.txt`
+- `make_parse_ssl.log`, `openssl_req.log`, `parse.log`, `expect.log`, `session.log`
+- `TEST_SUMMARY ... fail=0` and `SUITE_RESULT ... fail=0` in logs when successful
 
 ## Notes
 

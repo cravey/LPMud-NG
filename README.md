@@ -58,3 +58,63 @@ The repository includes three complementary test paths focused on code that runs
 - Docs: `lpmud/tests/README.md`
 
 All generated test artifacts are written under `lpmud/tests/reports/`.
+
+## Optional TLS (SSL) Runtime
+
+TLS support is optional and gated by both build-time and runtime flags:
+
+- Build-time: `USE_SSL=1`
+- Runtime: `MUD_SSL=1`
+
+Required runtime env vars when TLS is enabled:
+
+- `MUD_SSL_CERT_FILE`
+- `MUD_SSL_KEY_FILE`
+
+Optional runtime env vars:
+
+- `MUD_SSL_CA_FILE`
+- `MUD_SSL_VERIFY_CLIENT`
+
+### About sample keypairs
+
+No static sample keypairs are committed in this repository.
+The SSL test harness creates an ephemeral self-signed cert/key per run under:
+
+- `lpmud/tests/reports/test_mudlib_ssl_suite_<timestamp>/tls/`
+
+### Manual local TLS run
+
+```bash
+cd lpmud
+make parse USE_SSL=1
+
+mkdir -p tests/tls
+openssl req -x509 -newkey rsa:2048 -nodes \
+  -keyout tests/tls/server.key \
+  -out tests/tls/server.crt \
+  -days 1 \
+  -subj "/CN=localhost"
+
+MUD_SSL=1 \
+MUD_SSL_CERT_FILE=tests/tls/server.crt \
+MUD_SSL_KEY_FILE=tests/tls/server.key \
+MUD_BIND_ADDR=127.0.0.1 \
+MUD_LIB=./test-mudlib \
+./parse
+```
+
+### TLS test-mudlib suite
+
+```bash
+cd lpmud
+./tests/run_test_mudlib_ssl_suite.sh
+```
+
+Note: building with `USE_SSL=1` requires OpenSSL development headers/libraries.
+If OpenSSL is in a non-default prefix, set `OPENSSL_ROOT`, for example:
+
+```bash
+cd lpmud
+make parse USE_SSL=1 OPENSSL_ROOT=/tmp/openssl-3.6.1-local
+```
