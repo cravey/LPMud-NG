@@ -139,6 +139,7 @@ clean:
 	rm -f parse debug count_active core frontend mudlib/core mudlib/debug.log TAGS
 	rm -f $(BUILD_MODE_FILE)
 	rm -f lpmud.log
+	find . -name '*.debug.log' -type f -print -exec rm -f \{} \;
 	rm -rf tests/reports/*
 	find . -name '*.i' -print -exec rm -f \{} \;
 #	find . -name '*~' -print -exec rm -f \{} \;
