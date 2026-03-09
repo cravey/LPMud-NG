@@ -1,5 +1,7 @@
-# lpmud
-lpmud 2.4.5 playground to play with Claude Code and GPT codex on a legacy codebase
+# LPmud-NG
+lpmud 2.4.5 playground to play with Claude Code and GPT codex on a legacy codebase.
+
+It's become it's own thing, now.
 
 ## Project Modernization Summary
 
