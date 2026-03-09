@@ -136,7 +136,7 @@ main.o: lnode.h config.h object.h interpret.h
 clean:
 	rm -f *.o y.tab.h lang.c lexical.c *.ln mon.out
 	rm -f *.plist
-	rm -f parse debug core frontend mudlib/core mudlib/debug.log TAGS
+	rm -f parse debug count_active core frontend mudlib/core mudlib/debug.log TAGS
 	rm -f $(BUILD_MODE_FILE)
 	rm -f lpmud.log
 	rm -rf tests/reports/*
