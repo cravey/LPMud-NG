@@ -57,13 +57,19 @@ void save_object(struct object *ob, char *file)
 {
     char *name, tmp_name[40];
     int len;
+    size_t file_len, wiz_name_len;
     FILE *f;
     struct lnode_var_def *p;
     int failed = 0;
 
     if (ob->wl) {
+	wiz_name_len = strlen(ob->wl->name);
+	file_len = strlen(file);
 	if (strncmp(file, "players/", 8) != 0 ||
-	    strncmp(file+8, ob->wl->name, strlen(ob->wl->name)) != 0 ||
+	    file_len < (size_t)(8 + wiz_name_len) ||
+	    strncmp(file+8, ob->wl->name, wiz_name_len) != 0 ||
+	    (file_len > (size_t)(8 + wiz_name_len) &&
+	     file[8 + wiz_name_len] != '/') ||
 	    strchr(file, '.')) {
 	    error("Illegal save file name %s\n", file);
 	}

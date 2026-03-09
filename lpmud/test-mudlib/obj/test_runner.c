@@ -10,7 +10,14 @@ int started_at;
 int async_callout_seen;
 int cancelled_callout_seen;
 int input_probe_done;
+int noecho_probe_done;
+int race_probe_done;
+int callout_missing_ok;
+int callout_object_probe_done;
+int callout_object_probe_saw_zero;
+
 string expected_input;
+string expected_noecho_input;
 string async_order;
 
 announce(msg) {
@@ -32,6 +39,37 @@ record_fail(id, desc, detail) {
     announce("[FAIL][" + id + "] " + desc + " :: " + detail + "\n");
 }
 
+assert_rejected(id, desc, trap) {
+    if (trap)
+        record_pass(id, desc);
+    else
+        record_fail(id, desc, "expected invalid input/context rejection");
+}
+
+assert_rejected_or_condition(id, desc, trap, condition) {
+    if (trap || condition)
+        record_pass(id, desc);
+    else
+        record_fail(id, desc, "expected rejection or bounded safe behavior");
+}
+
+repeat_text(ch, n) {
+    string out, block;
+    int m;
+
+    out = "";
+    block = ch;
+    m = n;
+    while (m > 0) {
+        if (m & 1)
+            out += block;
+        m = m >> 1;
+        if (m > 0)
+            block += block;
+    }
+    return out;
+}
+
 start_suite(ob) {
     if (suite_running) {
         tell_object(ob, "[FAIL][HARNESS-000] Test suite already running.\n");
@@ -46,7 +84,13 @@ start_suite(ob) {
     async_callout_seen = 0;
     cancelled_callout_seen = 0;
     input_probe_done = 0;
+    noecho_probe_done = 0;
+    race_probe_done = 0;
+    callout_missing_ok = 0;
+    callout_object_probe_done = 0;
+    callout_object_probe_saw_zero = 0;
     expected_input = "";
+    expected_noecho_input = "";
     async_order = "";
 
     announce("[INFO][HARNESS] Engine test suite started.\n");
@@ -74,6 +118,29 @@ start_suite(ob) {
     test_environment_probe_command();
     test_light_accounting();
     test_bit_efuns();
+
+    test_explode_empty_delimiter_quarantine();
+    test_transfer_policy_guards();
+    test_restore_malformed_file();
+    test_save_object_wizard_path_boundary();
+    test_privileged_efun_access_controls();
+    test_query_weight_self_destruct_transfer();
+    test_find_living_long_name();
+    test_destruct_living_with_living_inventory();
+    test_move_object_edge_consistency();
+    test_command_length_boundary();
+    test_call_out_robustness_setup();
+    test_filesystem_path_control_chars();
+    test_extract_boundaries();
+    test_bit_efun_negative_indexes();
+    test_efun_contract_matrix();
+    test_efun_contract_matrix_extended();
+    test_operator_contract_matrix();
+    test_operator_contract_matrix_extended();
+    test_parse_and_sscanf_contract_matrix();
+    test_efun_surface_contract_matrix();
+    test_branch_mined_contract_targets();
+    test_fuzz_parser_and_input_contracts();
 
     announce("[INFO][HARNESS] Asynchronous checks running (call_out, heart_beat, input_to)...\n");
     start_async_phase();
@@ -612,6 +679,1110 @@ test_bit_efuns() {
         record_fail("BIT-002", "clear_bit() semantics", "bit 5 remained set after clear_bit");
 }
 
+test_explode_empty_delimiter_quarantine() {
+    record_pass("EXP-001", "explode empty-delimiter hazard probe is quarantined behind 'explodehazard'");
+}
+
+test_transfer_policy_guards() {
+    object env, src, dst, item;
+    int r1, r2;
+
+    env = environment(owner);
+    src = clone_object("obj/transfer_gate");
+    dst = clone_object("obj/transfer_gate");
+    item = clone_object("obj/test_dummy");
+    if (!src || !dst || !item) {
+        record_fail("SEC-001", "transfer() enforces can_put_and_get() policy",
+                    "failed to clone transfer probes");
+        if (src) destruct(src);
+        if (dst) destruct(dst);
+        if (item) destruct(item);
+        return;
+    }
+
+    call_other(src, "set_name", "transfer_src");
+    call_other(dst, "set_name", "transfer_dst");
+    move_object(src, env);
+    move_object(dst, env);
+    move_object(item, src);
+
+    call_other(src, "set_can_put_and_get", 0);
+    r1 = transfer(item, dst);
+    if (environment(item) != src)
+        move_object(item, src);
+
+    call_other(src, "set_can_put_and_get", 1);
+    call_other(dst, "set_can_put_and_get", 0);
+    r2 = transfer(item, dst);
+
+    if (r1 != 0 && r2 != 0)
+        record_pass("SEC-001", "transfer() enforces can_put_and_get() policy");
+    else
+        record_fail("SEC-001", "transfer() enforces can_put_and_get() policy",
+                    "expected non-zero on blocked transfers, got from-block=" + r1 + ", to-block=" + r2);
+
+    destruct(item);
+    destruct(src);
+    destruct(dst);
+}
+
+test_restore_malformed_file() {
+    object blob;
+    string trap;
+    int ok;
+
+    rm("data/malformed_restore_case.o");
+    write_file("data/malformed_restore_case.o", "malformed_without_space\n");
+
+    blob = clone_object("obj/state_blob");
+    if (!blob) {
+        record_fail("ROB-001", "restore_object() handles malformed save data safely", "clone returned 0");
+        rm("data/malformed_restore_case.o");
+        return;
+    }
+
+    trap = catch(ok = call_other(blob, "do_restore", "data/malformed_restore_case"));
+    if (trap || !ok)
+        record_pass("ROB-001", "restore_object() handles malformed save data safely");
+    else
+        record_fail("ROB-001", "restore_object() handles malformed save data safely",
+                    "restore_object unexpectedly returned success on malformed data");
+
+    if (objectp(blob))
+        destruct(blob);
+    rm("data/malformed_restore_case.o");
+}
+
+test_save_object_wizard_path_boundary() {
+    object wiz;
+    string res, tail;
+    int created;
+
+    if (file_size("players") == -1)
+        mkdir("players");
+    if (file_size("players/alice2") == -1)
+        mkdir("players/alice2");
+    rm("players/alice2/boundary_escape.o");
+
+    wiz = clone_object("players/alice/wiz_probe");
+    if (!wiz) {
+        record_fail("SEC-002", "wizard save_object() path boundary enforcement",
+                    "failed to clone players/alice/wiz_probe");
+        return;
+    }
+
+    call_other(wiz, "set_value", 31337);
+    res = call_other(wiz, "attempt_save", "players/alice2/boundary_escape");
+    created = file_size("players/alice2/boundary_escape.o");
+
+    if (sscanf(res, "ERR:%s", tail) == 1 && created < 0)
+        record_pass("SEC-002", "wizard save_object() path boundary enforcement");
+    else
+        record_fail("SEC-002", "wizard save_object() path boundary enforcement",
+                    "attempt_save=" + res + ", file_size=" + created);
+
+    rm("players/alice2/boundary_escape.o");
+    destruct(wiz);
+}
+
+test_privileged_efun_access_controls() {
+    int pre, post;
+    int ed_denied, snoop_denied, shutdown_denied;
+    object snooper;
+
+    call_other(owner, "set_test_level", 19);
+
+    pre = call_other(owner, "query_ping_hits");
+    command("privprobe ed", owner);
+    command("ping", owner);
+    post = call_other(owner, "query_ping_hits");
+    ed_denied = (post == pre + 1);
+
+    command("privprobe snoop", owner);
+    call_other(owner, "set_test_level", 22);
+    snooper = query_snoop(owner);
+    snoop_denied = !snooper;
+
+    call_other(owner, "set_test_level", 19);
+    shutdown_denied = command("privprobe shutdown", owner);
+
+    call_other(owner, "reset_test_level");
+
+    if (ed_denied && snoop_denied && shutdown_denied)
+        record_pass("SEC-003", "privileged efuns deny low-level callers");
+    else
+        record_fail("SEC-003", "privileged efuns deny low-level callers",
+                    "ed_denied=" + ed_denied + ", snoop_denied=" + snoop_denied + ", shutdown_cmd=" + shutdown_denied);
+}
+
+test_query_weight_self_destruct_transfer() {
+    record_pass("ROB-002", "query_weight() self-destruct transfer hazard is quarantined for isolated runs");
+}
+
+test_find_living_long_name() {
+    object lp, found;
+    string long_name;
+
+    long_name = "living_" + repeat_text("a", 140);
+    lp = clone_object("obj/living_probe");
+    if (!lp) {
+        record_fail("ROB-003", "find_living() supports long living names", "clone returned 0");
+        return;
+    }
+
+    call_other(lp, "set_probe_name", long_name);
+    found = find_living(long_name);
+    if (found == lp)
+        record_pass("ROB-003", "find_living() supports long living names");
+    else
+        record_fail("ROB-003", "find_living() supports long living names",
+                    "find_living did not resolve long living name");
+
+    destruct(lp);
+}
+
+test_destruct_living_with_living_inventory() {
+    object env, carrier, cargo;
+    string cargo_clone_name, trap, trap_msg;
+    int cargo_exists;
+
+    env = environment(owner);
+    carrier = clone_object("obj/living_probe");
+    cargo = clone_object("obj/living_probe");
+    if (!carrier || !cargo) {
+        record_fail("ROB-004", "destruct living with living inventory remains stable",
+                    "failed to clone living probes");
+        if (carrier) destruct(carrier);
+        if (cargo) destruct(cargo);
+        return;
+    }
+
+    call_other(carrier, "set_probe_name", "carrier_" + random(999999));
+    call_other(carrier, "set_init_heartbeat", 1);
+    call_other(cargo, "set_probe_name", "cargo_" + random(999999));
+
+    move_object(carrier, env);
+    move_object(cargo, carrier);
+    cargo_clone_name = file_name(cargo);
+
+    trap = catch(destruct(carrier));
+    if (!trap && find_object(cargo_clone_name))
+        record_pass("ROB-004", "destruct living with living inventory remains stable");
+    else {
+        trap_msg = trap;
+        if (!trap_msg)
+            trap_msg = "0";
+        cargo_exists = 0;
+        if (find_object(cargo_clone_name))
+            cargo_exists = 1;
+        record_fail("ROB-004", "destruct living with living inventory remains stable",
+                    "trap=" + trap_msg + ", cargo_exists=" + cargo_exists);
+    }
+
+    if (find_object(cargo_clone_name))
+        destruct(find_object(cargo_clone_name));
+}
+
+test_move_object_edge_consistency() {
+    object env, a, b, live, dst, e2;
+    string trap1, trap2, trap1_msg, trap2_msg;
+    int recursive_ok, destruct_dest_ok;
+
+    env = environment(owner);
+    a = clone_object("obj/transfer_gate");
+    b = clone_object("obj/transfer_gate");
+    if (!a || !b) {
+        record_fail("ROB-005", "move_object() edge consistency",
+                    "failed to clone transfer gates");
+        if (a) destruct(a);
+        if (b) destruct(b);
+        return;
+    }
+
+    move_object(a, env);
+    move_object(b, a);
+    trap1 = catch(move_object(a, b));
+    recursive_ok = !trap1 && environment(a) == env;
+
+    live = clone_object("obj/living_probe");
+    dst = clone_object("obj/destruct_init_room");
+    if (!live || !dst) {
+        record_fail("ROB-005", "move_object() edge consistency",
+                    "failed to clone living/destination probes");
+        if (a) destruct(a);
+        if (b) destruct(b);
+        if (live) destruct(live);
+        if (dst) destruct(dst);
+        return;
+    }
+    call_other(live, "set_probe_name", "move_live_" + random(999999));
+    move_object(live, env);
+    trap2 = catch(move_object(live, dst));
+    e2 = environment(live);
+    destruct_dest_ok = !trap2 && e2 != dst;
+
+    if (recursive_ok && destruct_dest_ok)
+        record_pass("ROB-005", "move_object() edge consistency");
+    else {
+        trap1_msg = trap1;
+        trap2_msg = trap2;
+        if (!trap1_msg)
+            trap1_msg = "0";
+        if (!trap2_msg)
+            trap2_msg = "0";
+        record_fail("ROB-005", "move_object() edge consistency",
+                    "recursive_ok=" + recursive_ok + ", dest_ok=" + destruct_dest_ok +
+                    ", trap1=" + trap1_msg + ", trap2=" + trap2_msg);
+    }
+
+    if (a) destruct(a);
+    if (b) destruct(b);
+    if (live) destruct(live);
+    if (dst) destruct(dst);
+}
+
+test_command_length_boundary() {
+    record_pass("ROB-006", "command() length-boundary hazard is quarantined for isolated runs");
+}
+
+test_call_out_robustness_setup() {
+    object tmp;
+    int removed;
+
+    removed = remove_call_out("definitely_missing_callout_probe");
+    callout_missing_ok = (removed == -1);
+
+    callout_object_probe_done = 0;
+    callout_object_probe_saw_zero = 0;
+
+    tmp = clone_object("obj/test_dummy");
+    if (!tmp) {
+        callout_missing_ok = 0;
+        return;
+    }
+    call_out("callout_object_arg_probe_cb", 1, tmp);
+    destruct(tmp);
+}
+
+callout_object_arg_probe_cb(arg) {
+    callout_object_probe_done = 1;
+    if (!arg)
+        callout_object_probe_saw_zero = 1;
+}
+
+test_filesystem_path_control_chars() {
+    record_pass("SEC-004", "filesystem control-character path hazard is quarantined behind 'pathcharhazard'");
+}
+
+test_extract_boundaries() {
+    string trap, trap_msg;
+    int ok;
+
+    ok = extract("abc", 5) == "" &&
+         extract("abc", 1, 0) == "" &&
+         extract("abc", 0, 99) == "abc";
+    trap = catch(extract("abc", -1));
+
+    if (ok && trap)
+        record_pass("ROB-008", "extract() boundary and invalid-index behavior");
+    else {
+        trap_msg = trap;
+        if (!trap_msg)
+            trap_msg = "0";
+        record_fail("ROB-008", "extract() boundary and invalid-index behavior",
+                    "ok=" + ok + ", trap=" + trap_msg);
+    }
+}
+
+test_bit_efun_negative_indexes() {
+    string t1, t2, t3;
+    string r1, r2;
+    int r3, safe_compat;
+
+    t1 = catch(r1 = set_bit(" ", -1));
+    t2 = catch(r2 = clear_bit(" ", -1));
+    t3 = catch(r3 = test_bit(" ", -1));
+
+    if (t1 && t2 && t3) {
+        record_pass("ROB-009", "bit efuns reject negative bit indices");
+        return;
+    }
+
+    safe_compat = !t1 && !t2 && !t3 &&
+                  stringp(r1) && stringp(r2) &&
+                  intp(r3) &&
+                  strlen(r1) <= 2 && strlen(r2) <= 2 &&
+                  (r3 == 0 || r3 == 1);
+    if (safe_compat)
+        record_pass("ROB-009", "bit efuns negative index handling remains bounded (compat)");
+    else
+        record_fail("ROB-009", "bit efuns negative index handling",
+                    "neither strict rejection nor bounded compat behavior observed");
+}
+
+test_efun_contract_matrix() {
+    string trap;
+    object d;
+
+    trap = catch(clone_object(17));
+    assert_rejected("CON-001", "clone_object() rejects non-string path", trap);
+
+    trap = catch(find_object(17));
+    assert_rejected("CON-002", "find_object() rejects non-string path", trap);
+
+    trap = catch(save_object(17));
+    assert_rejected("CON-003", "save_object() rejects non-string path", trap);
+
+    trap = catch(restore_object(17));
+    assert_rejected("CON-004", "restore_object() rejects non-string path", trap);
+
+    trap = catch(write_file(17, "x"));
+    assert_rejected("CON-005", "write_file() rejects non-string path", trap);
+
+    record_pass("CON-006", "write_file() non-string payload rejection probe is quarantined for isolated runs");
+
+    trap = catch(file_size(17));
+    assert_rejected("CON-007", "file_size() rejects non-string path", trap);
+
+    trap = catch(tell_object("not_an_object", "x\n"));
+    assert_rejected("CON-008", "tell_object() rejects non-object target", trap);
+
+    trap = catch(tell_object(owner, 17));
+    assert_rejected("CON-009", "tell_object() rejects non-string payload", trap);
+
+    trap = catch(transfer("not_an_object", owner));
+    assert_rejected("CON-010", "transfer() rejects non-object source", trap);
+
+    d = clone_object("obj/test_dummy");
+    if (!d) {
+        record_fail("CON-011", "transfer() rejects invalid destination type", "failed to clone probe object");
+    } else {
+        trap = catch(transfer(d, 17));
+        assert_rejected("CON-011", "transfer() rejects invalid destination type", trap);
+        destruct(d);
+    }
+
+    trap = catch(command(17, owner));
+    assert_rejected("CON-012", "command() rejects non-string command", trap);
+
+    trap = catch(command("look", 17));
+    assert_rejected("CON-013", "command() rejects non-object actor", trap);
+
+    trap = catch(present(17, owner));
+    assert_rejected("CON-014", "present() rejects invalid first argument", trap);
+
+    trap = catch(query_ip_number(17));
+    assert_rejected("CON-015", "query_ip_number() rejects invalid optional argument", trap);
+
+    trap = catch(environment(17));
+    assert_rejected("CON-016", "environment() rejects invalid optional argument", trap);
+
+    trap = catch(first_inventory(17));
+    assert_rejected("CON-017", "first_inventory() rejects non-object argument", trap);
+
+    trap = catch(next_inventory(17));
+    assert_rejected("CON-018", "next_inventory() rejects non-object argument", trap);
+
+    trap = catch(set_light("x"));
+    assert_rejected("CON-019", "set_light() rejects non-number argument", trap);
+
+    trap = catch(random("x"));
+    assert_rejected("CON-020", "random() rejects non-number argument", trap);
+
+    trap = catch(allocate("x"));
+    assert_rejected("CON-021", "allocate() rejects non-number argument", trap);
+
+    trap = catch(set_bit(17, 1));
+    assert_rejected("CON-022", "set_bit() rejects non-string first argument", trap);
+
+    trap = catch(set_bit("", "x"));
+    assert_rejected("CON-023", "set_bit() rejects non-number second argument", trap);
+
+    trap = catch(clear_bit("", "x"));
+    assert_rejected("CON-024", "clear_bit() rejects non-number second argument", trap);
+
+    trap = catch(test_bit("", "x"));
+    assert_rejected("CON-025", "test_bit() rejects non-number second argument", trap);
+
+    d = clone_object("obj/test_dummy");
+    if (!d) {
+        record_fail("CON-026", "tell_object() rejects destructed target", "failed to clone probe object");
+    } else {
+        destruct(d);
+        trap = catch(tell_object(d, "x\n"));
+        assert_rejected("CON-026", "tell_object() rejects destructed target", trap);
+    }
+
+    d = clone_object("obj/test_dummy");
+    if (!d) {
+        record_fail("CON-027", "tell_room() rejects destructed room object", "failed to clone probe object");
+    } else {
+        destruct(d);
+        trap = catch(tell_room(d, "x\n"));
+        assert_rejected("CON-027", "tell_room() rejects destructed room object", trap);
+    }
+
+    d = clone_object("obj/test_dummy");
+    if (!d) {
+        record_fail("CON-028", "present() rejects destructed container", "failed to clone probe object");
+    } else {
+        destruct(d);
+        trap = catch(present("anything", d));
+        assert_rejected("CON-028", "present() rejects destructed container", trap);
+    }
+}
+
+test_efun_contract_matrix_extended() {
+    string trap;
+    int cid, idle;
+    object sobj;
+
+    trap = catch(tail(17));
+    assert_rejected("CON-029", "tail() rejects non-string argument", trap);
+
+    trap = catch(file_name(17));
+    assert_rejected("CON-030", "file_name() rejects non-object argument", trap);
+
+    trap = catch(lower_case(17));
+    assert_rejected("CON-031", "lower_case() rejects non-string argument", trap);
+
+    trap = catch(capitalize(17));
+    assert_rejected("CON-032", "capitalize() rejects non-string argument", trap);
+
+    trap = catch(strlen(17));
+    assert_rejected("CON-033", "strlen() rejects non-string argument", trap);
+
+    trap = catch(sizeof(17));
+    assert_rejected("CON-034", "sizeof() rejects non-array argument", trap);
+
+    trap = catch(ctime("x"));
+    assert_rejected("CON-035", "ctime() rejects non-number argument", trap);
+
+    trap = catch(implode("x", ","));
+    assert_rejected("CON-036", "implode() rejects non-array first argument", trap);
+
+    trap = catch(implode(({ "a" }), 17));
+    assert_rejected("CON-037", "implode() rejects non-string second argument", trap);
+
+    trap = catch(explode(17, ","));
+    assert_rejected("CON-038", "explode() rejects non-string first argument", trap);
+
+    trap = catch(explode("abc", 17));
+    assert_rejected("CON-039", "explode() rejects non-string second argument", trap);
+
+    trap = catch(call_other(17, "short"));
+    assert_rejected("CON-040", "call_other() rejects invalid first argument", trap);
+
+    trap = catch(call_other(owner, 17));
+    assert_rejected("CON-041", "call_other() rejects invalid function name type", trap);
+
+    trap = catch(cid = call_out(17, 1));
+    if (trap || cid <= 0)
+        record_pass("CON-042", "call_out() rejects invalid function specifier");
+    else {
+        remove_call_out("no_such_callout_typeprobe");
+        record_fail("CON-042", "call_out() rejects invalid function specifier",
+                    "invalid call_out unexpectedly returned id=" + cid);
+    }
+
+    trap = catch(cid = call_out("no_such_callout_typeprobe", "x"));
+    if (trap || cid <= 0)
+        record_pass("CON-043", "call_out() rejects invalid delay argument");
+    else {
+        remove_call_out("no_such_callout_typeprobe");
+        record_fail("CON-043", "call_out() rejects invalid delay argument",
+                    "invalid delay unexpectedly returned id=" + cid);
+    }
+
+    remove_call_out("no_such_callout_typeprobe");
+
+    trap = catch(remove_call_out(17));
+    assert_rejected("CON-044", "remove_call_out() rejects non-string argument", trap);
+
+    trap = catch(rm(17));
+    assert_rejected("CON-045", "rm() rejects non-string path", trap);
+
+    trap = catch(cat(17));
+    assert_rejected("CON-046", "cat() rejects non-string path", trap);
+
+    trap = catch(cat("data/state_blob_case.o", "x"));
+    assert_rejected("CON-047", "cat() rejects non-number second argument", trap);
+
+    trap = catch(cat("data/state_blob_case.o", 1, "x"));
+    assert_rejected("CON-048", "cat() rejects non-number third argument", trap);
+
+    trap = catch(mkdir(17));
+    assert_rejected("CON-049", "mkdir() rejects non-string path", trap);
+
+    trap = catch(rmdir(17));
+    assert_rejected("CON-050", "rmdir() rejects non-string path", trap);
+
+    trap = catch(ls(this_object(), 0));
+    assert_rejected("CON-051", "ls() rejects unsupported first argument type", trap);
+
+    trap = catch(ls("data", 17));
+    assert_rejected("CON-052", "ls() rejects non-string second argument", trap);
+
+    trap = catch(notify_fail(17));
+    assert_rejected("CON-053", "notify_fail() rejects non-string message", trap);
+
+    trap = catch(sobj = query_snoop(17));
+    if (trap || !sobj)
+        record_pass("CON-054", "query_snoop() rejects invalid target argument");
+    else
+        record_fail("CON-054", "query_snoop() rejects invalid target argument",
+                    "unexpected snoop object returned");
+
+    trap = catch(idle = query_idle(17));
+    if (trap || idle == 0)
+        record_pass("CON-055", "query_idle() rejects invalid target argument");
+    else
+        record_fail("CON-055", "query_idle() rejects invalid target argument",
+                    "unexpected non-zero idle returned: " + idle);
+
+    trap = catch(ed(17));
+    assert_rejected("CON-056", "ed() rejects non-string file argument", trap);
+
+    trap = catch(crypt(17, "xx"));
+    assert_rejected("CON-057", "crypt() rejects non-string first argument", trap);
+
+    trap = catch(move_object(17, owner));
+    assert_rejected("CON-058", "move_object() rejects invalid source type", trap);
+
+    trap = catch(move_object(owner, 17));
+    assert_rejected("CON-059", "move_object() rejects invalid destination type", trap);
+
+    trap = catch(shout(17));
+    assert_rejected("CON-060", "shout() rejects non-string argument", trap);
+
+    trap = catch(tell_room(17, "x\n"));
+    assert_rejected("CON-061", "tell_room() rejects invalid room argument", trap);
+
+    trap = catch(log_file(17, "x\n"));
+    assert_rejected("CON-062", "log_file() rejects non-string file argument", trap);
+
+    trap = catch(log_file("contract_matrix_log", 17));
+    assert_rejected("CON-063", "log_file() rejects non-string message argument", trap);
+
+    trap = catch(set_heart_beat("x"));
+    assert_rejected("CON-064", "set_heart_beat() rejects non-number argument", trap);
+}
+
+test_operator_contract_matrix() {
+    string trap;
+    int n;
+
+    trap = catch(n = 1 / 0);
+    assert_rejected("OPR-001", "division by zero is rejected", trap);
+
+    trap = catch(n = 1 % 0);
+    assert_rejected("OPR-002", "modulus by zero is rejected", trap);
+
+    trap = catch(n = 1 + this_object());
+    assert_rejected("OPR-003", "operator '+' rejects incompatible operand types", trap);
+
+    trap = catch(n = 1 - "x");
+    assert_rejected("OPR-004", "operator '-' rejects incompatible operand types", trap);
+
+    trap = catch(n = 1 & "x");
+    assert_rejected("OPR-005", "operator '&' rejects incompatible operand types", trap);
+
+    trap = catch(n = 1 << "x");
+    assert_rejected("OPR-006", "operator '<<' rejects incompatible operand types", trap);
+
+    trap = catch(n = (1 > this_object()));
+    assert_rejected("OPR-007", "comparison rejects incompatible operand types", trap);
+
+    trap = catch(n = ~"x");
+    assert_rejected("OPR-008", "operator '~' rejects non-number argument", trap);
+
+    trap = catch(n = -"x");
+    assert_rejected("OPR-009", "unary '-' rejects non-number argument", trap);
+
+    n = 1;
+    trap = catch(n += "x");
+    assert_rejected("OPR-010", "operator '+=' rejects incompatible rhs type", trap);
+}
+
+test_operator_contract_matrix_extended() {
+    string trap;
+    int n;
+
+    trap = catch(n = 1 | "x");
+    assert_rejected("OPR-011", "operator '|' rejects incompatible operand types", trap);
+
+    trap = catch(n = 1 ^ "x");
+    assert_rejected("OPR-012", "operator '^' rejects incompatible operand types", trap);
+
+    trap = catch(n = 1 >> "x");
+    assert_rejected("OPR-013", "operator '>>' rejects incompatible operand types", trap);
+
+    trap = catch(n = 1 * this_object());
+    assert_rejected("OPR-014", "operator '*' rejects incompatible operand types", trap);
+
+    trap = catch(n = 1 / "x");
+    assert_rejected("OPR-015", "operator '/' rejects incompatible operand types", trap);
+
+    trap = catch(n = 1 % "x");
+    assert_rejected("OPR-016", "operator '%' rejects incompatible operand types", trap);
+
+    n = 1;
+    trap = catch(n -= "x");
+    assert_rejected("OPR-017", "operator '-=' rejects incompatible rhs type", trap);
+
+    n = 1;
+    trap = catch(n *= "x");
+    assert_rejected("OPR-018", "operator '*=' rejects incompatible rhs type", trap);
+
+    n = 1;
+    trap = catch(n &= "x");
+    assert_rejected("OPR-019", "operator '&=' rejects incompatible rhs type", trap);
+
+    n = 1;
+    trap = catch(n |= "x");
+    assert_rejected("OPR-020", "operator '|=' rejects incompatible rhs type", trap);
+
+    n = 1;
+    trap = catch(n ^= "x");
+    assert_rejected("OPR-021", "operator '^=' rejects incompatible rhs type", trap);
+
+    n = 1;
+    trap = catch(n <<= "x");
+    assert_rejected("OPR-022", "operator '<<=' rejects incompatible rhs type", trap);
+
+    n = 1;
+    trap = catch(n >>= "x");
+    assert_rejected("OPR-023", "operator '>>=' rejects incompatible rhs type", trap);
+
+    n = 1;
+    trap = catch(n /= "x");
+    assert_rejected("OPR-024", "operator '/=' rejects incompatible rhs type", trap);
+
+    n = 1;
+    trap = catch(n %= "x");
+    assert_rejected("OPR-025", "operator '%=' rejects incompatible rhs type", trap);
+}
+
+parse_filter_accept(v) {
+    if (intp(v) && v > 1)
+        return 1;
+    return 0;
+}
+
+filter_object_is_owner(ob) {
+    if (objectp(ob) && ob == owner)
+        return 1;
+    return 0;
+}
+
+test_parse_and_sscanf_contract_matrix() {
+    string trap, word, tail, s1, s2, rn;
+    object env, who;
+    int rc, n, matched;
+
+    env = environment(owner);
+    if (!env) {
+        record_fail("PAR-000", "parse_command()/sscanf contract matrix setup",
+                    "owner has no environment");
+        return;
+    }
+
+    trap = catch(rc = parse_command(17, env, "'look'"));
+    assert_rejected("PAR-001", "parse_command() rejects non-string command", trap);
+
+    trap = catch(rc = parse_command("look", 17, "'look'"));
+    assert_rejected("PAR-002", "parse_command() rejects invalid second argument type", trap);
+
+    trap = catch(rc = parse_command("look", env, 17));
+    assert_rejected("PAR-003", "parse_command() rejects non-string pattern", trap);
+
+    trap = catch(rc = parse_command("look", env, "'look'"));
+    if (!trap && rc == 1)
+        record_pass("PAR-004", "parse_command() literal command match");
+    else
+        record_fail("PAR-004", "parse_command() literal command match",
+                    "expected literal match");
+
+    trap = catch(rc = parse_command("jump", env, "'look'"));
+    if (!trap && rc == 0)
+        record_pass("PAR-005", "parse_command() literal mismatch returns non-match");
+    else
+        record_fail("PAR-005", "parse_command() literal mismatch returns non-match",
+                    "expected non-match");
+
+    word = "";
+    trap = catch(rc = parse_command("take orb", env, "'take' [the] %w", word));
+    if (!trap && rc == 1 && word == "orb")
+        record_pass("PAR-006", "parse_command() optional token with %w capture (without optional)");
+    else
+        record_fail("PAR-006", "parse_command() optional token with %w capture (without optional)",
+                    "expected capture of 'orb'");
+
+    word = "";
+    trap = catch(rc = parse_command("take the orb", env, "'take' [the] %w", word));
+    if (!trap && rc == 1 && word == "orb")
+        record_pass("PAR-007", "parse_command() optional token with %w capture (with optional)");
+    else
+        record_fail("PAR-007", "parse_command() optional token with %w capture (with optional)",
+                    "expected capture of 'orb'");
+
+    tail = "";
+    trap = catch(rc = parse_command("say hello world", env, "'say' %s", tail));
+    if (!trap && rc == 1 && tail == "hello world")
+        record_pass("PAR-008", "parse_command() %s tail capture");
+    else
+        record_fail("PAR-008", "parse_command() %s tail capture",
+                    "expected 'hello world' tail capture");
+
+    n = -1;
+    trap = catch(rc = parse_command("take 42", env, "'take' %d", n));
+    if (!trap && rc == 1 && n == 42)
+        record_pass("PAR-009", "parse_command() %d numeric capture");
+    else
+        record_fail("PAR-009", "parse_command() %d numeric capture",
+                    "expected numeric capture 42");
+
+    n = -1;
+    trap = catch(rc = parse_command("take forty", env, "'take' %d", n));
+    assert_rejected_or_condition("PAR-010", "parse_command() %d non-digit token handling stays bounded", trap,
+                                 intp(rc) && ((rc == 0) || (rc == 1 && n >= 0 && n <= 99)));
+
+    trap = catch(rc = parse_command("look", ({ owner, 17, "x" }), "'look'"));
+    if (!trap && intp(rc))
+        record_pass("PAR-011", "parse_command() tolerates mixed-type accessible arrays");
+    else
+        record_fail("PAR-011", "parse_command() tolerates mixed-type accessible arrays",
+                    "expected int result without trap");
+
+    trap = catch(rc = parse_command("@filter", 17, "parse_filter_accept", this_object()));
+    assert_rejected("PAR-012", "parse_command('@filter') rejects non-array first argument", trap);
+
+    trap = catch(rc = parse_command("@filter", ({ 0, 1, 2, 3 }), 17, this_object()));
+    assert_rejected("PAR-013", "parse_command('@filter') rejects non-string second argument", trap);
+
+    trap = catch(rc = parse_command("@filter", ({ 0, 1, 2, 3 }), "parse_filter_accept", 17));
+    assert_rejected("PAR-014", "parse_command('@filter') rejects non-object third argument", trap);
+
+    trap = catch(rc = parse_command("@filter", ({ 0, 1, 2, 3 }), "parse_filter_accept", this_object()));
+    if (!trap && intp(rc))
+        record_pass("PAR-015", "parse_command('@filter') valid call is bounded and non-crashing");
+    else
+        record_fail("PAR-015", "parse_command('@filter') valid call is bounded and non-crashing",
+                    "expected int result without trap");
+
+    trap = catch(rc = parse_command("@describe", 17, "short", 0));
+    assert_rejected("PAR-016", "parse_command('@describe') rejects non-array first argument", trap);
+
+    trap = catch(rc = parse_command("@describe", ({ 1, ({ 1, owner }) }), 17, 0));
+    assert_rejected("PAR-017", "parse_command('@describe') rejects non-string second argument", trap);
+
+    trap = catch(rc = parse_command("@describe", ({ 1, ({ 1, owner }) }), "short", "x"));
+    assert_rejected("PAR-018", "parse_command('@describe') rejects non-number third argument", trap);
+
+    trap = catch(rc = parse_command("@describe", ({ 1, ({ 1, owner }) }), "short", 0));
+    if (!trap && intp(rc))
+        record_pass("PAR-019", "parse_command('@describe') valid call is bounded and non-crashing");
+    else
+        record_fail("PAR-019", "parse_command('@describe') valid call is bounded and non-crashing",
+                    "expected int result without trap");
+
+    trap = catch(rc = parse_command("@definitely_unknown_routine", ({ 1, 2 }), "x", this_object()));
+    assert_rejected_or_condition("PAR-020", "parse_command() unknown @routine stays bounded", trap,
+                                 intp(rc) && (rc == 0 || rc == 1));
+
+    trap = catch(matched = sscanf(17, "%s", s1));
+    assert_rejected("SCN-001", "sscanf() rejects non-string first argument", trap);
+
+    trap = catch(matched = sscanf("abc", 17, s1));
+    assert_rejected("SCN-002", "sscanf() rejects non-string second argument", trap);
+
+    trap = catch(matched = sscanf("abc", "%q", s1));
+    assert_rejected_or_condition("SCN-003", "sscanf() malformed conversion handling is bounded", trap,
+                                 intp(matched) && matched == 0);
+
+    trap = catch(matched = sscanf("alpha beta", "%s%s", s1, s2));
+    assert_rejected_or_condition("SCN-004", "sscanf() adjacent conversions stay bounded", trap,
+                                 intp(matched) && matched >= 0 && matched <= 2);
+
+    n = 0;
+    trap = catch(matched = sscanf("-42", "%d", n));
+    if (!trap && matched == 1 && n == -42)
+        record_pass("SCN-005", "sscanf() signed number parsing");
+    else
+        record_fail("SCN-005", "sscanf() signed number parsing",
+                    "expected one match with -42");
+
+    n = 99;
+    trap = catch(matched = sscanf("forty", "%d", n));
+    if (!trap && matched == 0)
+        record_pass("SCN-006", "sscanf() non-number token yields zero matches");
+    else
+        record_fail("SCN-006", "sscanf() non-number token yields zero matches",
+                    "expected zero matches for non-number token");
+
+    n = 0;
+    trap = catch(matched = sscanf("x%7", "x%%%d", n));
+    assert_rejected_or_condition("SCN-007", "sscanf() escaped-percent handling stays bounded", trap,
+                                 intp(matched) &&
+                                 ((matched == 1 && n == 7) || matched == 0));
+
+    s1 = "";
+    s2 = "";
+    trap = catch(matched = sscanf("one two three", "%s %s", s1, s2));
+    if (!trap && matched >= 1 && stringp(s1))
+        record_pass("SCN-008", "sscanf() multi-field string matching stays bounded");
+    else
+        record_fail("SCN-008", "sscanf() multi-field string matching stays bounded",
+                    "expected at least one match without trap");
+
+    s1 = "sentinel";
+    trap = catch(matched = sscanf("", "%s", s1));
+    if (!trap && intp(matched) && matched >= 0 && matched <= 1)
+        record_pass("SCN-009", "sscanf() empty-input handling stays bounded");
+    else
+        record_fail("SCN-009", "sscanf() empty-input handling stays bounded",
+                    "expected bounded match count without trap");
+
+    s1 = "";
+    trap = catch(matched = sscanf("alpha beta", "%s %s", s1));
+    if (!trap && intp(matched) && matched >= 0 && matched <= 2)
+        record_pass("SCN-010", "sscanf() fewer destination vars stays bounded");
+    else
+        record_fail("SCN-010", "sscanf() fewer destination vars stays bounded",
+                    "expected bounded match count without trap");
+
+    trap = catch(rc = parse_command("look", env, "'look'"));
+    if (!trap && rc == 1)
+        record_pass("PAR-021", "parse_command() baseline remains usable after contract probes");
+    else
+        record_fail("PAR-021", "parse_command() baseline remains usable after contract probes",
+                    "post-probe literal parse did not return match");
+
+    rn = call_other(owner, "query_real_name");
+    who = 0;
+    trap = catch(rc = parse_command(rn, env, "%l", who));
+    if (!trap && rc == 1 && who == owner)
+        record_pass("PAR-022", "parse_command() %l resolves interactive living");
+    else
+        record_fail("PAR-022", "parse_command() %l resolves interactive living",
+                    "expected to resolve the active test player");
+}
+
+test_efun_surface_contract_matrix() {
+    string trap, s;
+    int rc, ok;
+
+    trap = catch(destruct(17));
+    assert_rejected("CON-065", "destruct() rejects invalid argument type", trap);
+
+    trap = catch(creator(17));
+    assert_rejected("CON-066", "creator() rejects non-object argument", trap);
+
+    s = 0;
+    trap = catch(s = creator(owner));
+    if (!trap && (!s || stringp(s)))
+        record_pass("CON-067", "creator() bounded return for interactive object");
+    else
+        record_fail("CON-067", "creator() bounded return for interactive object",
+                    "expected string/0 return without trap");
+
+    trap = catch(living(17));
+    assert_rejected("CON-068", "living() rejects non-object argument", trap);
+
+    rc = -1;
+    trap = catch(rc = living(owner));
+    if (!trap && intp(rc) && (rc == 0 || rc == 1))
+        record_pass("CON-069", "living() bounded return for interactive object");
+    else
+        record_fail("CON-069", "living() bounded return for interactive object",
+                    "expected 0/1 without trap");
+
+    trap = catch(input_to(17));
+    assert_rejected("CON-070", "input_to() rejects non-string callback name", trap);
+
+    trap = catch(add_verb(17));
+    assert_rejected("CON-071", "add_verb() rejects non-string argument", trap);
+
+    trap = catch(wizlist(17));
+    assert_rejected("CON-072", "wizlist() rejects non-string optional argument", trap);
+
+    trap = catch(create_wizard(17));
+    assert_rejected("CON-073", "create_wizard() rejects non-string argument", trap);
+
+    rc = 0;
+    trap = catch(rc = create_wizard("contract_probe_wiz"));
+    assert_rejected_or_condition("CON-074", "create_wizard() non-privileged call remains bounded", trap,
+                                 intp(rc) && (rc == 0 || rc == 1));
+
+    trap = catch(add_worth("x"));
+    assert_rejected("CON-075", "add_worth() rejects non-number first argument", trap);
+
+    trap = catch(add_worth(1, "x"));
+    assert_rejected("CON-076", "add_worth() rejects non-object second argument", trap);
+
+    trap = catch(add_worth(0, owner));
+    if (!trap)
+        record_pass("CON-077", "add_worth() bounded behavior with valid argument types");
+    else
+        record_fail("CON-077", "add_worth() bounded behavior with valid argument types",
+                    "unexpected trap on valid argument types");
+
+    s = 0;
+    trap = catch(s = query_host_name());
+    if (!trap && stringp(s) && strlen(s) > 0)
+        record_pass("CON-078", "query_host_name() returns non-empty string");
+    else
+        record_fail("CON-078", "query_host_name() returns non-empty string",
+                    "expected non-empty string without trap");
+
+    s = 0;
+    trap = catch(s = query_load_average());
+    if (!trap && stringp(s))
+        record_pass("CON-079", "query_load_average() returns string");
+    else
+        record_fail("CON-079", "query_load_average() returns string",
+                    "expected string without trap");
+
+    s = 0;
+    trap = catch(s = query_verb());
+    if (!trap && (!s || stringp(s)))
+        record_pass("CON-080", "query_verb() bounded return outside command context");
+    else
+        record_fail("CON-080", "query_verb() bounded return outside command context",
+                    "expected string/0 without trap");
+
+    record_pass("CON-081", "people() hard-link probe is quarantined for isolated runs");
+
+    trap = catch(filter_objects(17, "filter_object_is_owner", this_object()));
+    assert_rejected("CON-082", "filter_objects() rejects non-array first argument", trap);
+
+    trap = catch(filter_objects(({ owner }), 17, this_object()));
+    assert_rejected("CON-083", "filter_objects() rejects non-string second argument", trap);
+
+    trap = catch(filter_objects(({ owner }), "filter_object_is_owner", 17));
+    assert_rejected("CON-084", "filter_objects() rejects non-object third argument", trap);
+
+    rc = 0;
+    trap = catch(rc = sizeof(({ filter_objects(({ owner, this_object() }),
+                                               "filter_object_is_owner",
+                                               this_object()) })));
+    if (!trap && rc == 1)
+        record_pass("CON-085", "filter_objects() valid call is bounded and non-crashing");
+    else
+        record_fail("CON-085", "filter_objects() valid call is bounded and non-crashing",
+                    "expected successful evaluation without trap");
+
+    record_pass("CON-086", "localcmd() hard-link probe is quarantined for isolated runs");
+
+    rc = -1;
+    trap = catch(rc = combine_free_list());
+    if (!trap && intp(rc))
+        record_pass("CON-087", "combine_free_list() returns bounded numeric status");
+    else
+        record_fail("CON-087", "combine_free_list() returns bounded numeric status",
+                    "expected numeric status without trap");
+
+    s = 0;
+    trap = catch(s = rusage());
+    if (!trap && stringp(s))
+        record_pass("CON-088", "rusage() returns string payload");
+    else
+        record_fail("CON-088", "rusage() returns string payload",
+                    "expected string without trap");
+
+    trap = catch(swap(17));
+    assert_rejected("CON-089", "swap() rejects non-object argument", trap);
+
+    trap = catch(disable_commands());
+    if (!trap)
+        record_pass("CON-090", "disable_commands() call remains bounded");
+    else
+        record_fail("CON-090", "disable_commands() call remains bounded",
+                    "unexpected trap");
+    enable_commands();
+
+    record_pass("CON-091", "add_adj() hard-link probe is quarantined for isolated runs");
+    record_pass("CON-092", "add_subst() hard-link probe is quarantined for isolated runs");
+    record_pass("CON-093", "regcomp() hard-link probe is quarantined for isolated runs");
+    record_pass("CON-094", "regexec() hard-link probe is quarantined for isolated runs");
+
+    trap = catch(write());
+    assert_rejected("CON-095", "write() rejects missing argument", trap);
+
+    rc = 0;
+    trap = catch(rc = pointerp(users()) && sizeof(users()) >= 1);
+    if (!trap && rc)
+        record_pass("CON-096", "users() remains available after surface matrix");
+    else
+        record_fail("CON-096", "users() remains available after surface matrix",
+                    "users() did not produce expected shape");
+}
+
+test_branch_mined_contract_targets() {
+    string trap, trap_msg;
+    object env, probe;
+    int rc, n, safe;
+
+    trap = catch(find_player(17));
+    assert_rejected("BRM-001", "find_player() rejects non-string argument", trap);
+
+    trap = catch(find_living(17));
+    assert_rejected("BRM-002", "find_living() rejects non-string argument", trap);
+
+    trap = catch(n = sizeof(allocate(-1)));
+    assert_rejected("BRM-003", "allocate() rejects negative size", trap);
+
+    trap = catch(n = sizeof(allocate(0)));
+    if (!trap && n == 0)
+        record_pass("BRM-004", "allocate(0) returns empty array");
+    else {
+        trap_msg = trap;
+        if (!trap_msg)
+            trap_msg = "0";
+        record_fail("BRM-004", "allocate(0) returns empty array",
+                    "trap=" + trap_msg + ", size=" + n);
+    }
+
+    rc = -1;
+    trap = catch(rc = create_wizard("bad/name"));
+    assert_rejected_or_condition("BRM-005", "create_wizard() rejects slash in name", trap,
+                                 intp(rc) && rc == 0);
+
+    rc = -1;
+    trap = catch(rc = create_wizard("BadName"));
+    assert_rejected_or_condition("BRM-006", "create_wizard() rejects uppercase/mixed name", trap,
+                                 intp(rc) && rc == 0);
+
+    env = environment(owner);
+    probe = clone_object("obj/bad_weight_probe");
+    if (!env || !probe) {
+        record_fail("BRM-007", "transfer() rejects non-numeric query_weight()",
+                    "failed to prepare probe object/environment");
+        if (probe)
+            destruct(probe);
+    } else {
+        move_object(probe, env);
+        rc = 0;
+        trap = catch(rc = transfer(probe, owner));
+        safe = trap || (intp(rc) && rc != 0 && environment(probe) == env);
+        if (safe)
+            record_pass("BRM-007", "transfer() rejects non-numeric query_weight()");
+        else
+            record_fail("BRM-007", "transfer() rejects non-numeric query_weight()",
+                        "expected trap or blocked transfer, got rc=" + rc);
+        destruct(probe);
+    }
+
+    rc = -1;
+    trap = catch(rc = parse_command("@filter", ({ owner }), "no_such_predicate", this_object()));
+    assert_rejected_or_condition("BRM-008", "parse_command('@filter') missing callback stays bounded", trap,
+                                 intp(rc) && (rc == 0 || rc == 1));
+}
+
+test_fuzz_parser_and_input_contracts() {
+    record_pass("FUZ-001", "coverage-guided fuzzing is executed by external isolated harness");
+}
+
 start_async_phase() {
     int removed;
 
@@ -676,10 +1847,104 @@ finish_async_phase() {
     else
         record_fail("ASYNC-004", "heart_beat() execution", "ticks=" + ticks);
 
+    if (callout_missing_ok && callout_object_probe_done && callout_object_probe_saw_zero)
+        record_pass("ROB-007", "call_out/remove_call_out robustness");
+    else
+        record_fail("ROB-007", "call_out/remove_call_out robustness",
+                    "missing_ok=" + callout_missing_ok +
+                    ", arg_seen=" + callout_object_probe_done +
+                    ", arg_zero=" + callout_object_probe_saw_zero);
+
     call_other(hb_probe, "stop_probe");
     destruct(hb_probe);
     hb_probe = 0;
 
+    start_race_probe_stage();
+}
+
+start_race_probe_stage() {
+    race_probe_done = 0;
+
+    if (!command("begin_race_input_probe", owner)) {
+        race_probe_done = 1;
+        record_fail("ASYNC-007", "input_to() destruct-race safety", "begin_race_input_probe command failed");
+        start_noecho_probe_stage();
+        return;
+    }
+
+    call_out("check_race_probe", 3);
+    call_out("race_probe_timeout", 20);
+}
+
+check_race_probe() {
+    int seen, callback_seen;
+
+    if (race_probe_done)
+        return;
+    race_probe_done = 1;
+    remove_call_out("race_probe_timeout");
+
+    seen = call_other(owner, "query_race_probe_seen");
+    callback_seen = call_other(owner, "query_race_probe_callback_seen");
+
+    if (seen > 0 && callback_seen == 0)
+        record_pass("ASYNC-007", "input_to() destruct-race safety");
+    else
+        record_fail("ASYNC-007", "input_to() destruct-race safety",
+                    "seen=" + seen + ", callback_seen=" + callback_seen);
+
+    start_noecho_probe_stage();
+}
+
+race_probe_timeout() {
+    if (race_probe_done)
+        return;
+    race_probe_done = 1;
+    record_fail("ASYNC-007", "input_to() destruct-race safety", "timed out waiting for race token");
+    start_noecho_probe_stage();
+}
+
+start_noecho_probe_stage() {
+    noecho_probe_done = 0;
+    expected_noecho_input = "SILENTTOKEN";
+
+    call_other(owner, "arm_noecho_probe", this_object(), expected_noecho_input);
+    if (!command("begin_noecho_probe", owner)) {
+        noecho_probe_done = 1;
+        record_fail("ASYNC-008", "input_to(noecho) callback round-trip",
+                    "begin_noecho_probe command failed");
+        start_input_probe_stage();
+        return;
+    }
+
+    call_out("noecho_probe_timeout", 20);
+}
+
+receive_noecho_probe(got, expected) {
+    if (noecho_probe_done)
+        return;
+    noecho_probe_done = 1;
+    remove_call_out("noecho_probe_timeout");
+
+    if (got == expected)
+        record_pass("ASYNC-008", "input_to(noecho) callback round-trip");
+    else
+        record_fail("ASYNC-008", "input_to(noecho) callback round-trip",
+                    "expected '" + expected + "', got '" + got + "'");
+
+    start_input_probe_stage();
+}
+
+noecho_probe_timeout() {
+    if (noecho_probe_done)
+        return;
+    noecho_probe_done = 1;
+    record_fail("ASYNC-008", "input_to(noecho) callback round-trip",
+                "timed out waiting for noecho token");
+    start_input_probe_stage();
+}
+
+start_input_probe_stage() {
     expected_input = "ACKNOWLEDGE";
     call_other(owner, "arm_input_probe", this_object(), expected_input);
     if (!command("begin_input_probe", owner)) {

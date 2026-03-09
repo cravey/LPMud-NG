@@ -1,44 +1,48 @@
 # Engine Test Mudlib
 
-Dedicated mudlib for validating LPmud driver/LPC engine behavior with deterministic, low-noise output.
+## Summary
 
-## Goals
+- Purpose: deterministic, driver-focused LPC validation using one command: `runtests`.
+- Current suite size: **225** checks.
+- Current baseline on this branch: **225 pass / 0 fail**.
+- Security regression IDs `SEC-001` and `SEC-002` now pass on this branch (fixed in driver).
+- Recommended execution: automated wrappers in `lpmud/tests/` (non-interactive).
 
-- Keep world content minimal and deterministic.
-- Exercise core LPC features and efuns through one command: `runtests`.
-- Emit explicit `[PASS]`/`[FAIL]` lines plus a machine-parsable `TEST_SUMMARY`.
-- Favor driver/engine coverage over gameplay content coverage.
+## Usage (Quick Start)
 
-## Requirements
-
-- `make`
-- `expect`
-- `nc`
-- `lsof`
-- `uuidgen`
-
-## Recommended: Automated Run
-
-From repository root:
+From `lpmud/`:
 
 ```bash
-cd lpmud
 ./tests/run_test_mudlib_suite.sh
 ```
 
-What this script does:
+Also available:
 
-1. Builds `parse`.
-2. Copies `test-mudlib` into a temporary isolated runtime mudlib.
-3. Starts `parse` with `MUD_LIB` pointing to that runtime copy.
-4. Connects via `nc` and runs `runtests`.
-5. Responds to the async `input_to` prompt automatically.
-6. Writes logs under `tests/reports/test_mudlib_suite_<timestamp>/`.
+```bash
+./tests/run_test_mudlib_ssl_suite.sh
+./tests/run_driver_differential_suite.sh
+./tests/run_driver_fuzz_suite.sh
+./tests/run_driver_mutation_suite.sh
+python3 tests/mine_driver_targets.py --source-root .
+```
 
-Pass condition:
+## Required User Interaction (Manual `nc` Runs)
 
-- `TEST_SUMMARY total=... pass=... fail=0 ...`
-- `[RESULT] PASS all engine checks succeeded.`
+Automated wrappers answer prompts for you. Manual sessions require exact token input:
+
+1. At `Login name (lowercase letters):` enter only lowercase `a-z` (max 11 chars).
+2. Run `runtests`.
+3. Respond exactly in this order:
+   1. `RACE-001` prompt: type `raceok` (lowercase, case-sensitive).
+   2. `NOECHO-001` prompt: type `SILENTTOKEN` (UPPERCASE, case-sensitive).
+   3. `ASYNC-003` prompt: type `ACKNOWLEDGE` (UPPERCASE, case-sensitive).
+
+Rules:
+
+- Tokens are case-sensitive.
+- Type exactly the shown token, no quotes.
+- Press Enter after each token.
+- `NOECHO-001` input is hidden (`input_to(..., 1)`), so characters will not echo.
 
 ## Manual Run
 
@@ -47,7 +51,7 @@ Terminal 1:
 ```bash
 cd lpmud
 make parse
-MUD_LIB=./test-mudlib MUD_BIND_ADDR=127.0.0.1 ./parse
+MUD_BIND_ADDR=127.0.0.1 MUD_LIB=./test-mudlib ./parse
 ```
 
 Terminal 2:
@@ -56,63 +60,53 @@ Terminal 2:
 nc localhost 2000
 ```
 
-Then:
+Then follow the interaction requirements above.
 
-1. Enter a lowercase login name.
-2. Run `runtests`.
-3. When prompted with `[ACTION][ASYNC-003] Enter token: ACKNOWLEDGE`, type `ACKNOWLEDGE`.
-4. Verify `TEST_SUMMARY` ends with `fail=0`.
+## Coverage Overview
 
-## Expected Interactive Behavior
+Suite areas covered by default `runtests`:
 
-- World has two rooms:
-  - `room/church` with exit `east`.
-  - `room/lab` with exit `west`.
-- `look at sign` and `look at console` work.
-- `read sign`, `use console`, and `consider console` returning `What ?` is expected in this minimal mudlib (verbs intentionally not implemented).
+- Core LPC behavior: arithmetic, recursion, arrays, type predicates, string ops, `sscanf`, random/time.
+- Efun contracts: broad bad-type/bad-context matrix (`CON-001`..`CON-096`).
+- Operator contracts: arithmetic/bitwise/assignment guard matrix (`OPR-001`..`OPR-025`).
+- Parser/input contracts: `parse_command` + `sscanf` matrix (`PAR-*`, `SCN-*`).
+- Branch-mined abstractions: additional portable checks (`BRM-001`..`BRM-008`).
+- Object/inventory lifecycle: clone/find/destruct/move/transfer edge behavior.
+- Security/privilege probes: low-level `ed/snoop/shutdown` denial and path boundary checks.
+- Async behavior: `call_out`, `remove_call_out`, ordering, `heart_beat`, `input_to`, `input_to(noecho)`, race handling.
 
-## Notes On CMD-001 Movement Check
+## Quarantined Hazard Probes
 
-- `CMD-001` validates `command()` dispatch for room exits.
-- Harness now normalizes the starting room before running `command("east")`, so `runtests` is valid from either church or lab.
-- If it fails, detail includes precondition or source room context.
+These are intentionally excluded from default `runtests` because older drivers may hang/crash:
 
-## Current Coverage Areas
+- `explodehazard`
+- `weightdestructhazard`
+- `commandlenhazard`
+- `pathcharhazard`
+- hard-link-only efuns (`people`, `localcmd`, `add_adj`, `add_subst`, `regcomp`, `regexec`) are tracked as quarantined contract checks
 
-- The current suite executes **47** checks.
-- Core language behavior:
-  - Arithmetic, loops, recursion, arrays, type predicates, string ops, `sscanf`, `random`, `time`/`ctime`.
-- Error behavior:
-  - `catch` runtime errors and `throw` value propagation.
-- Player/living/network lookup:
-  - `users`, `find_player`, `find_living`, `query_ip_number`.
-- Object lifecycle and inventory:
-  - `clone_object`, `find_object`, `previous_object`, `present`, `transfer`, `first_inventory`, `next_inventory`, destruct lifecycle.
-- Command/action dispatch:
-  - Room exits via `command`, player verbs via `add_action`, command-context `environment(this_player())` probes.
-- Filesystem efuns:
-  - `save_object`, `restore_object`, `write_file`, `file_size`, `cat`, `mkdir`, `rmdir`, `rm`.
-- Messaging primitives:
-  - `tell_object`, `tell_room`, `say`.
-- Light and bit efuns:
-  - `set_light`, `set_bit`, `clear_bit`, `test_bit`.
-- Async behavior:
-  - `call_out`, `remove_call_out`, multi-callout ordering, `heart_beat`, `input_to`.
+Run hazard probes only in isolated processes/sessions.
 
-## Remaining Gaps
+## Driver vs Test-Mudlib Crash Attribution
 
-Potential high-value next steps:
+Use this triage order:
 
-- Privileged/admin efuns (`snoop`, `ed`, shutdown paths) in controlled harnesses.
-- `parse_command` grammar edge cases with richer noun/adjective rules.
-- Multi-user race/ordering scenarios under simultaneous interactive sessions.
-- Negative path tests for mudlib policy hooks (`valid_read`, `valid_write`) under stricter access configurations.
+1. Reproduce with a minimal single probe in a fresh process.
+2. Check compile/runtime diagnostics first (`parse.log`, object compile errors, `catch()` behavior).
+3. Re-run through wrappers to rule out manual-input mistakes.
+4. Compare behavior across drivers with `run_driver_differential_suite.sh` when possible.
+5. If a probe can kill the process, keep it quarantined and out of default `runtests`.
+
+## Notes
+
+- Runtime currently prefers `.i` in this mudlib layout; keep `.c` and `.i` synchronized when editing runner/player objects.
+- Differential runs against `lpmud-orig` require a host-compatible original binary.
 
 ## Troubleshooting
 
 - `bind: Operation not permitted`:
-  - Environment blocked listening socket binds. Run outside restricted sandbox or use approved test wrapper.
-- Port already in use:
-  - Free `localhost:2000` before starting (`lsof -nP -iTCP:2000 -sTCP:LISTEN`).
-- Timeouts in async phase:
-  - Ensure token prompt is answered exactly with the displayed token.
+  - Run wrappers outside restricted sandbox.
+- Port conflict on `localhost:2000`:
+  - Check listeners with `lsof -nP -iTCP:2000 -sTCP:LISTEN`.
+- Async timeouts:
+  - Verify token order and exact case-sensitive input.

@@ -85,6 +85,16 @@ while {!$summary_seen} {
             send -- "$token\r"
             exp_continue
         }
+        -re {\[ACTION\]\[RACE-001\] Enter token: ([A-Za-z0-9_\-]+)} {
+            set token $expect_out(1,string)
+            send -- "$token\r"
+            exp_continue
+        }
+        -re {\[ACTION\]\[NOECHO-001\] Enter token: ([A-Za-z0-9_\-]+)} {
+            set token $expect_out(1,string)
+            send -- "$token\r"
+            exp_continue
+        }
         -re {TEST_SUMMARY total=([0-9]+) pass=([0-9]+) fail=([0-9]+) duration=([0-9]+)s} {
             set total $expect_out(1,string)
             set passed $expect_out(2,string)

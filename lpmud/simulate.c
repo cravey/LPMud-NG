@@ -2553,7 +2553,7 @@ int transfer_object(struct object *ob, struct object *to)
      */
     if (from && from->super && !from->enable_commands) {
 	ret = apply("can_put_and_get", from, 0);
-	if (!ret || (ret->type != T_NUMBER && ret->u.number != 1) ||
+	if (!ret || ret->type != T_NUMBER || ret->u.number == 0 ||
 	  from->destructed)
 	    return 3;
     }
@@ -2566,7 +2566,7 @@ int transfer_object(struct object *ob, struct object *to)
 	if (ret && (ret->type != T_NUMBER || ret->u.number != 0))
 	    return 4;
 	ret = apply("can_put_and_get", to, 0);
-	if (!ret || (ret->type != T_NUMBER && ret->type != 0) ||
+	if (!ret || ret->type != T_NUMBER || ret->u.number == 0 ||
 	  to->destructed || ob->destructed)
 	    return 5;
     }
