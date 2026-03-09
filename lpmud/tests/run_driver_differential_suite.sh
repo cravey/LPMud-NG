@@ -7,7 +7,7 @@ RUN_ID="$(date +%Y%m%d_%H%M%S)"
 RUN_DIR_REL="tests/reports/driver_diff_suite_${RUN_ID}"
 RUN_DIR="$NG_ROOT/$RUN_DIR_REL"
 
-ORIG_ROOT_DEFAULT="/Users/cravey/Documents/GitHub/lpmud-orig/lpmud"
+ORIG_ROOT_DEFAULT="$NG_ROOT/../lpmud-orig/lpmud"
 ORIG_ROOT="${ORIG_LPMUD_ROOT:-$ORIG_ROOT_DEFAULT}"
 
 NG_PARSE="${NG_PARSE_BIN:-$NG_ROOT/parse}"
@@ -109,8 +109,8 @@ run_suite_for_driver() {
 
   cat >"$run_subdir/RESULT.txt" <<EOF
 Driver label: $label
-Parse binary: $parse_bin
-Parse cwd: $parse_cwd
+Parse binary: $(basename "$parse_bin")
+Parse cwd label: $label
 Expect exit code: $expect_exit
 Summary line: $summary_line
 Expect line: $expect_line
@@ -154,9 +154,6 @@ Driver differential suite completed.
 
 Run ID: $RUN_ID
 Run dir: $RUN_DIR_REL
-
-NG parse: $NG_PARSE
-Orig parse: $ORIG_PARSE
 
 Captured IDs:
 - NG: $NG_TOTAL
