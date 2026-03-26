@@ -3,10 +3,17 @@
 ## Summary
 
 - Purpose: deterministic, driver-focused LPC validation using one command: `runtests`.
-- Current suite size: **225** checks.
-- Current baseline on this branch: **225 pass / 0 fail**.
-- Security regression IDs `SEC-001` and `SEC-002` now pass on this branch (fixed in driver).
+- Suite size and PASS/FAIL totals intentionally are not hard-coded here; they change as probes evolve.
+- Security regression probes include `SEC-001` and `SEC-002`.
 - Recommended execution: automated wrappers in `lpmud/tests/` (non-interactive).
+
+To get current results, run:
+
+```bash
+make mudlibtest
+```
+
+Then inspect the generated `tests/reports/test_mudlib_suite_<timestamp>/SUMMARY.txt`.
 
 ---
 

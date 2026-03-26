@@ -97,7 +97,14 @@ openssl req -x509 -newkey rsa:2048 -nodes \
   -keyout tests/tls/server.key \
   -out tests/tls/server.crt \
   -days 1 \
-  -subj "/CN=localhost"
+  -subj "/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+```
+
+Set restrictive permissions on the private key:
+
+```bash
+chmod 600 tests/tls/server.key
 ```
 
 ### Use the Generated Cert/Key
@@ -110,6 +117,29 @@ MUD_LIB=./mudlib \
 MUD_BIND_ADDR=127.0.0.1 \
 ./parse
 ```
+
+### Verify Certificate/Key Material
+
+Inspect certificate subject, validity window, and SAN:
+
+```bash
+openssl x509 -in tests/tls/server.crt -noout -subject -issuer -dates -ext subjectAltName
+```
+
+Validate private key structure:
+
+```bash
+openssl pkey -in tests/tls/server.key -noout -check
+```
+
+Check that certificate and key are a pair:
+
+```bash
+openssl x509 -in tests/tls/server.crt -noout -modulus | openssl md5
+openssl rsa -in tests/tls/server.key -noout -modulus | openssl md5
+```
+
+The two digests above should match.
 
 ### Operational Recommendations
 
@@ -132,6 +162,12 @@ MUD_BIND_ADDR=127.0.0.1 \
 - `openssl s_client` (used by the SSL test harness)
 - custom TLS-capable line-oriented clients
 - plain `nc`/telnet are for non-SSL mode only
+
+Example client probe against localhost:
+
+```bash
+openssl s_client -connect 127.0.0.1:2000 -servername localhost -CAfile tests/tls/server.crt -quiet
+```
 
 ### Rollout and Maintenance Approach
 

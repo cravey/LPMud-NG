@@ -6,6 +6,21 @@ For driver build, deployment, and environment variables, start with [lpmud/READM
 
 ---
 
+## Start Here (By Role)
+
+- Driver maintainer: [lpmud/README.md](lpmud/README.md) -> [lpmud/DEPENDENCIES.md](lpmud/DEPENDENCIES.md) -> [lpmud/QUICKSTART.md](lpmud/QUICKSTART.md)
+- Mudlib wizard/admin: [lpmud/mudlib/README.md](lpmud/mudlib/README.md) -> [lpmud/mudlib/QUICKSTART.md](lpmud/mudlib/QUICKSTART.md)
+- Test engineer/QA: [lpmud/tests/README.md](lpmud/tests/README.md) -> [lpmud/test-mudlib/README.md](lpmud/test-mudlib/README.md)
+- TLS/operations: [lpmud/SSL.md](lpmud/SSL.md) -> [lpmud/README.md](lpmud/README.md)
+
+Quick sanity run from `lpmud/`:
+
+```bash
+make parse && make mudlibtest
+```
+
+---
+
 ## Documentation Guide
 
 ### Repository-Level Docs
@@ -16,13 +31,14 @@ For driver build, deployment, and environment variables, start with [lpmud/READM
 ### Driver and Build Docs
 
 - [lpmud/README.md](lpmud/README.md): primary build, validation, and deployment reference.
-- [lpmud/Quickstart.md](lpmud/Quickstart.md): driver architecture and maintainer workflow.
+- [lpmud/DEPENDENCIES.md](lpmud/DEPENDENCIES.md): external toolchain and runtime dependency matrix.
+- [lpmud/QUICKSTART.md](lpmud/QUICKSTART.md): driver architecture and maintainer workflow.
 - [lpmud/SSL.md](lpmud/SSL.md): canonical SSL/TLS build and runtime guide.
 
 ### Mudlib Docs
 
 - [lpmud/mudlib/README.md](lpmud/mudlib/README.md): mudlib directory orientation and key paths.
-- [lpmud/mudlib/Quickstart.md](lpmud/mudlib/Quickstart.md): wizard/admin gameplay-content workflow.
+- [lpmud/mudlib/QUICKSTART.md](lpmud/mudlib/QUICKSTART.md): wizard/admin gameplay-content workflow.
 
 ### Testing Docs
 

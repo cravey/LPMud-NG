@@ -1,6 +1,6 @@
 # License
 
-This game, LPmud, is copyright by Lars Pensj|, 1990.
+This game, LPmud, is copyright by Lars Pensjö, 1990.
 
 Source code herein refers to the source code, and any executables
 created from the same source code.

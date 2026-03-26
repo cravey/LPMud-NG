@@ -20,29 +20,18 @@ This directory contains:
 - Runtime content: `mudlib/`
 - Driver-focused test content: `test-mudlib/`
 - Test harness and utilities: `tests/`
-- Supporting docs: `Quickstart.md`, `Security.txt`, `SSL.md`
+- Supporting docs: [QUICKSTART.md](QUICKSTART.md), [DEPENDENCIES.md](DEPENDENCIES.md), [Security.txt](Security.txt), [SSL.md](SSL.md)
 
 ---
 
 ## 2) External Build Dependencies
 
-### Required for Standard Builds
+Dependency details are maintained in [DEPENDENCIES.md](DEPENDENCIES.md), including:
 
-- `make`
-- C compiler with C23 support (`cc`, `clang`, or `gcc`)
-- `lex` and `yacc` (or compatible replacements such as `flex` and `bison`)
-- standard C/POSIX headers and libraries
-- `libm` (`-lm`)
-- Linux: `libcrypt` development support (`-lcrypt` is linked on Linux)
-
-### Optional Build Dependencies
-
-- OpenSSL development headers/libraries for SSL builds (`USE_SSL=1`)
-- `clang` for `make ci-analyze`
-
-### Common Non-Build Test/Runtime Tools
-
-- `python3`, `expect`, `nc`, `openssl`, `lsof`, `uuidgen`
+- build-required toolchain,
+- Make target specific tooling (`clang`, `lint`, `etags`),
+- test/runtime script dependencies,
+- platform package-install examples.
 
 ---
 
@@ -68,6 +57,18 @@ Run commands from this directory (`lpmud/`).
 ### Driver Suite Convenience Target
 
 - `make mudlibtest`: runs `./tests/run_test_mudlib_suite.sh` and prints suite summary
+
+### CI vs Test-Suite Scope
+
+| Command | What it validates | Launches driver runtime? | Uses expect/network harness? |
+|---|---|---|---|
+| `make ci-warnings` | compile warnings (`-Wall -Wextra -Wpedantic -Werror`) | no | no |
+| `make ci-sanitize` | sanitizer compile/link gate | no | no |
+| `make ci-analyze` | static analysis (`clang --analyze`) | no | no |
+| `make ci` | all three CI compile/analyze gates above | no | no |
+| `make mudlibtest` | dedicated `test-mudlib` behavioral suite | yes | yes |
+
+If you need behavioral runtime validation, run `make mudlibtest` in addition to `make ci`.
 
 ### SSL Build (Optional)
 

@@ -103,10 +103,19 @@ These are key persistent mudlib data files:
 - Bulletin/wizard boards: `bulletin.o`, `wiz_bull*.o`
 - Wizard ranking/state: `WIZLIST`
 
+Data classification:
+
+| Type | Examples | How to handle |
+|---|---|---|
+| Source definitions | `room/*.c`, `obj/*.c`, docs in `doc/` | version in git, review like code |
+| Runtime mutable state | `players/*.o`, `room/post_dir/*.o`, `banish/*.o`, board `.o` files, `WIZLIST` | treat as operational data; back up before risky changes |
+| Runtime logs | `log/*` | rotate/archive outside source-control flow |
+
 Notes:
 
 - `.o` files in mudlib are LPC save-state files from `save_object`, not C object files.
 - Keep backups for `players/`, `room/post_dir/`, `banish/`, `WIZLIST`, and board files.
+- Avoid committing runtime save-state/log churn unless the change is intentional and reviewed as data migration.
 
 ---
 
@@ -115,6 +124,7 @@ Notes:
 - Treat `log/` as operational data; rotate/archive externally if needed.
 - Distinguish source content (`.c`, `.h`, docs) from runtime mutable state (`*.o`, logs, WIZLIST).
 - Prefer staging and testing room/object changes with wizard commands before promoting broad changes.
+- For maintenance windows, take an explicit pre-change snapshot of mutable paths, then verify login and board/mail flows after restart.
 
 ---
 

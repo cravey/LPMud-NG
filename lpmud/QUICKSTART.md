@@ -17,6 +17,18 @@ Primary startup sequence:
 3. `interpret.c` evaluates LPC bytecode/AST structures (`lnode`).
 4. `simulate.c` provides efun implementations and core object behaviors.
 
+High-level data/control flow:
+
+```mermaid
+flowchart LR
+  A["Client (nc / TLS client)"] --> B["comm1.c / backend.c"]
+  B --> C["interpret.c + simulate.c"]
+  C --> D["mudlib LPC objects (room/ obj/ players/)"]
+  D --> C
+  E["tests/*.sh + expect harnesses"] --> A
+  E --> B
+```
+
 Reference files:
 
 - [`README`](README)

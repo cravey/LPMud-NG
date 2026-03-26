@@ -63,6 +63,22 @@ Independent static mining:
 
 ---
 
+## CI vs Runtime Coverage Matrix
+
+| Command | Coverage type | Runs `parse` process | Uses network/expect | Notes |
+|---|---|---|---|---|
+| `make ci-warnings` | compiler warning gate | no | no | strict warning policy |
+| `make ci-sanitize` | sanitizer compile/link gate | no | no | checks ASAN/UBSAN build configuration |
+| `make ci-analyze` | static analysis | no | no | `clang --analyze` |
+| `make ci` | aggregate CI compile/analyze gates | no | no | does not execute gameplay/runtime flows |
+| `make mudlibtest` | dedicated behavioral runtime suite | yes | yes | primary regression command for driver behavior |
+| `./tests/run_engine_functional_suite.sh` | classic mudlib functional flow | yes | yes | gameplay/session checks on `mudlib/` |
+| `./tests/run_test_mudlib_ssl_suite.sh` | dedicated suite under TLS | yes | yes | validates SSL-enabled runtime path |
+
+Use `make ci` plus at least one runtime suite (typically `make mudlibtest`) for balanced confidence.
+
+---
+
 ## Typical Entry Points
 
 Run from `lpmud/`:
@@ -93,6 +109,19 @@ make mudlibtest
 3. Script utilities used by runners: `grep`, `sed`, `awk`, `tail`, `lsof`, `uuidgen`, `mktemp`, `openssl` (SSL suite).
 4. Differential suite requires two parse binaries (`NG_PARSE_BIN` and `ORIG_PARSE_BIN`, or `ORIG_LPMUD_ROOT` with `parse`).
 5. Local bind/connect access to `127.0.0.1:2000` is required for network suites.
+
+---
+
+## Failure Triage By Symptom
+
+| Symptom | Most likely cause(s) | First checks |
+|---|---|---|
+| `bind: Operation not permitted` or cannot listen on `localhost:2000` | restricted sandbox/permissions, existing listener | run outside restricted sandbox; run `lsof -nP -iTCP:2000 -sTCP:LISTEN` |
+| `expect` timeout waiting for prompt/output | driver failed to boot, wrong mudlib root, prompt mismatch | inspect `parse.log`, `make_parse.log`, and `session.log`; confirm `MUD_LIB` points to intended runtime copy |
+| suite exits early after compile step | build failure or tool missing | read `make_parse.log`; verify required tools in this doc are present |
+| SSL suite handshake failure | missing/mismatched cert/key, cert trust mismatch, SSL not enabled in build | check `MUD_SSL_*` env vars, inspect `expect.log`, verify cert/key pair and run `openssl s_client` probe |
+| differential suite cannot compare runs | missing `ORIG_PARSE_BIN`/`NG_PARSE_BIN` inputs | set `NG_PARSE_BIN` and either `ORIG_PARSE_BIN` or `ORIG_LPMUD_ROOT` |
+| fuzz run marks crash-suspected artifacts | driver exited or dropped connection under fuzz input | inspect per-seed JSON and transcript logs in run directory, then reproduce that seed in isolation |
 
 ---
 
