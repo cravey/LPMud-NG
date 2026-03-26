@@ -8,6 +8,8 @@
 - Security regression IDs `SEC-001` and `SEC-002` now pass on this branch (fixed in driver).
 - Recommended execution: automated wrappers in `lpmud/tests/` (non-interactive).
 
+---
+
 ## Usage (Quick Start)
 
 From `lpmud/`:
@@ -25,6 +27,8 @@ Also available:
 ./tests/run_driver_mutation_suite.sh
 python3 tests/mine_driver_targets.py --source-root .
 ```
+
+---
 
 ## Required User Interaction (Manual `nc` Runs)
 
@@ -44,6 +48,8 @@ Rules:
 - Press Enter after each token.
 - `NOECHO-001` input is hidden (`input_to(..., 1)`), so characters will not echo.
 
+---
+
 ## Manual Run
 
 Terminal 1:
@@ -62,6 +68,8 @@ nc localhost 2000
 
 Then follow the interaction requirements above.
 
+---
+
 ## Coverage Overview
 
 Suite areas covered by default `runtests`:
@@ -75,6 +83,8 @@ Suite areas covered by default `runtests`:
 - Security/privilege probes: low-level `ed/snoop/shutdown` denial and path boundary checks.
 - Async behavior: `call_out`, `remove_call_out`, ordering, `heart_beat`, `input_to`, `input_to(noecho)`, race handling.
 
+---
+
 ## Quarantined Hazard Probes
 
 These are intentionally excluded from default `runtests` because older drivers may hang/crash:
@@ -87,6 +97,8 @@ These are intentionally excluded from default `runtests` because older drivers m
 
 Run hazard probes only in isolated processes/sessions.
 
+---
+
 ## Driver vs Test-Mudlib Crash Attribution
 
 Use this triage order:
@@ -97,10 +109,14 @@ Use this triage order:
 4. Compare behavior across drivers with `run_driver_differential_suite.sh` when possible.
 5. If a probe can kill the process, keep it quarantined and out of default `runtests`.
 
+---
+
 ## Notes
 
 - Runtime currently prefers `.i` in this mudlib layout; keep `.c` and `.i` synchronized when editing runner/player objects.
 - Differential runs against `lpmud-orig` require a host-compatible original binary.
+
+---
 
 ## Troubleshooting
 

@@ -6,6 +6,8 @@ This directory contains the test runners, expect harnesses, and analysis/fuzz/mu
 
 All generated artifacts are written under `lpmud/tests/reports/` in timestamped run directories.
 
+---
+
 ## Directory Contents
 
 | Path | Type | Purpose | Primary Inputs | Primary Outputs |
@@ -23,6 +25,8 @@ All generated artifacts are written under `lpmud/tests/reports/` in timestamped 
 | `test_mudlib_suite.exp` | expect harness | Logs in and runs `runtests`; tracks FAIL lines; emits `SUITE_RESULT`. Supports `nc` or `openssl s_client`. | running driver on TCP socket | exit code + transcript side effects |
 | `nc_engine_suite.exp` | expect harness | Interactive gameplay/session checks for classic mudlib (new/existing scenarios). | running driver via `nc` | exit code + transcript side effects |
 | `reports/` | artifact dir | Timestamped output directories created by runners. | n/a | run logs, summaries, generated reports |
+
+---
 
 ## How The Pieces Relate
 
@@ -49,11 +53,15 @@ Independent static mining:
 1. `mine_driver_targets.py` scans driver source and test source heuristically
 2. does not require launching the driver
 
+---
+
 ## Relationship To `lpmud/Makefile`
 
 1. `make mudlibtest` calls `./tests/run_test_mudlib_suite.sh`, then prints the generated `SUMMARY.txt` when present.
 2. `make ci-warnings`, `make ci-sanitize`, `make ci-analyze`, and `make ci` do compiler/analyzer checks only; they do not call scripts from this directory.
 3. `make clean` removes `tests/reports/*` (along with build artifacts), so prior test run artifacts are cleared.
+
+---
 
 ## Typical Entry Points
 
@@ -76,6 +84,8 @@ Equivalent Make entry point for the primary dedicated suite:
 make mudlibtest
 ```
 
+---
+
 ## Important Runtime Requirements
 
 1. Shell/tooling: `bash`, `make`, `python3`.
@@ -83,6 +93,8 @@ make mudlibtest
 3. Script utilities used by runners: `grep`, `sed`, `awk`, `tail`, `lsof`, `uuidgen`, `mktemp`, `openssl` (SSL suite).
 4. Differential suite requires two parse binaries (`NG_PARSE_BIN` and `ORIG_PARSE_BIN`, or `ORIG_LPMUD_ROOT` with `parse`).
 5. Local bind/connect access to `127.0.0.1:2000` is required for network suites.
+
+---
 
 ## Notes
 

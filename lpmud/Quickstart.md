@@ -2,6 +2,8 @@
 
 This document is for architects and maintainers working on the C driver (`parse`) rather than mudlib gameplay code.
 
+---
+
 ## 1) System Boundaries
 
 - **Driver**: `parse` binary built from top-level C sources.
@@ -23,6 +25,8 @@ Reference files:
 - [`interpret.c`](interpret.c)
 - [`simulate.c`](simulate.c)
 - [`object.c`](object.c)
+
+---
 
 ## 2) Core Runtime Subsystems
 
@@ -94,6 +98,8 @@ Key files:
 - [`simulate.c`](simulate.c)
 - [`wiz_list.c`](wiz_list.c)
 
+---
+
 ## 3) Security/Policy Model
 
 - Driver enforces technical guards (path legality checks, privilege checks for select efuns, memory boundaries).
@@ -104,6 +110,8 @@ Reference:
 - [`Security.txt`](Security.txt)
 - [`simulate.c`](simulate.c)
 - [`mudlib/obj/player.c`](mudlib/obj/player.c)
+
+---
 
 ## 4) Build, Validation, and Artifacts
 
@@ -122,11 +130,15 @@ Reference:
 
 - [`Makefile`](Makefile)
 
+---
+
 ## 5) Architecture Risks to Keep in Mind
 
 - Legacy C patterns: fixed-size stack buffers, ad-hoc string handling, nontrivial refcount paths.
 - Tight coupling between driver internals and mudlib assumptions.
 - Runtime state and persistent mudlib files are mutable and often tracked in this repo; be explicit about operational vs source changes.
+
+---
 
 ## 6) Recommended Maintenance Workflow
 

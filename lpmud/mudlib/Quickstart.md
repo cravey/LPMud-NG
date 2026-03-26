@@ -2,6 +2,8 @@
 
 This guide is for new wizards building content and for admins maintaining mudlib operations.
 
+---
+
 ## 1) What mudlib Contains
 
 Directory overview:
@@ -16,6 +18,8 @@ Reference:
 
 - [`README`](README)
 - [`doc/build/README`](doc/build/README)
+
+---
 
 ## 2) Wizard Workflow Basics
 
@@ -34,6 +38,8 @@ Typical loop:
 2. Reload definition (`update <file>`).
 3. Load/test room or object (`load <file>`, `clone <file>` where appropriate).
 4. Iterate.
+
+---
 
 ## 3) Adding and Modifying Castles (New Wizard)
 
@@ -62,6 +68,8 @@ Helpful room docs:
 - [`doc/build/std2`](doc/build/std2)
 - [`doc/build/door`](doc/build/door)
 
+---
+
 ## 4) Adding Monsters and Items
 
 ### Monsters
@@ -83,6 +91,8 @@ Reference:
   - [`doc/build/food`](doc/build/food)
   - [`doc/build/drinks`](doc/build/drinks)
 
+---
+
 ## 5) Persistent Data (Admin-Critical)
 
 These are key persistent mudlib data files:
@@ -98,11 +108,15 @@ Notes:
 - `.o` files in mudlib are LPC save-state files from `save_object`, not C object files.
 - Keep backups for `players/`, `room/post_dir/`, `banish/`, `WIZLIST`, and board files.
 
+---
+
 ## 6) Admin Operating Guidance
 
 - Treat `log/` as operational data; rotate/archive externally if needed.
 - Distinguish source content (`.c`, `.h`, docs) from runtime mutable state (`*.o`, logs, WIZLIST).
 - Prefer staging and testing room/object changes with wizard commands before promoting broad changes.
+
+---
 
 ## 7) Recommended Learning Path for New Wizards
 

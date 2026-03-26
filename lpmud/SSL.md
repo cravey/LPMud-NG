@@ -1,5 +1,9 @@
 # SSL/TLS Build and Runtime Guide
 
+This is the canonical SSL/TLS reference for the `lpmud/` driver.
+
+---
+
 ## 1) Summary of the SSL Build Process and Dependencies
 
 SSL support is optional and controlled by two gates:
@@ -11,33 +15,36 @@ If runtime requests SSL on a non-SSL build, startup fails fast with:
 
 - `MUD_SSL=1 requested, but parse was built without USE_SSL=1.`
 
-Build wiring in `Makefile`:
+### Build Wiring in `Makefile`
 
 - adds `-DUSE_SSL` when `USE_SSL=1`
 - links `-lssl -lcrypto`
-- uses `OPENSSL_ROOT` include/lib paths when set (and also has auto-detection for common OpenSSL locations)
+- uses `OPENSSL_ROOT` include/lib paths when set
+- also auto-detects common OpenSSL installation paths
 
-Dependencies for SSL build:
+### SSL Build Dependencies
 
 - OpenSSL development headers/libraries
-- normal driver build dependencies from `README.md`
+- standard driver build dependencies from [README.md](README.md)
 
-SSL build commands:
+### SSL Build Commands
 
 ```bash
 make clean
 make parse USE_SSL=1
 ```
 
-If OpenSSL is not in default compiler/linker search paths:
+If OpenSSL is outside default compiler/linker search paths:
 
 ```bash
 make parse USE_SSL=1 OPENSSL_ROOT=/path/to/openssl
 ```
 
+---
+
 ## 2) Usage of an SSL Build
 
-Run SSL-enabled `parse`:
+### Run SSL-Enabled `parse`
 
 ```bash
 MUD_SSL=1 \
@@ -48,7 +55,7 @@ MUD_BIND_ADDR=127.0.0.1 \
 ./parse
 ```
 
-Optional client-certificate verification:
+### Optional Client-Certificate Verification
 
 ```bash
 MUD_SSL=1 \
@@ -61,26 +68,28 @@ MUD_BIND_ADDR=127.0.0.1 \
 ./parse
 ```
 
-`MUD_SSL` truthiness:
+### `MUD_SSL` Truthiness
 
 - false when unset, empty, `0`, `false`, `no`, or `off` (case-insensitive)
 - any other non-empty value enables SSL mode
 
-Useful verification paths:
+### Useful Verification Paths
 
 - non-SSL regression: `make mudlibtest` or `./tests/run_test_mudlib_suite.sh`
 - SSL integration: `./tests/run_test_mudlib_ssl_suite.sh`
 
+---
+
 ## 3) Certificate and Key Requirements (Creation and Use)
 
-Required formats:
+### Required Formats
 
 - server certificate: PEM (`MUD_SSL_CERT_FILE`)
 - server private key: PEM (`MUD_SSL_KEY_FILE`)
 - optional CA bundle: PEM (`MUD_SSL_CA_FILE`)
-- cert and key must match
+- certificate and key must match
 
-Quick self-signed cert generation for local/dev:
+### Quick Self-Signed Cert Generation (Local/Dev)
 
 ```bash
 mkdir -p tests/tls
@@ -91,7 +100,7 @@ openssl req -x509 -newkey rsa:2048 -nodes \
   -subj "/CN=localhost"
 ```
 
-Use generated cert/key:
+### Use the Generated Cert/Key
 
 ```bash
 MUD_SSL=1 \
@@ -102,26 +111,29 @@ MUD_BIND_ADDR=127.0.0.1 \
 ./parse
 ```
 
-Operational recommendations:
+### Operational Recommendations
 
 - use CA-issued certs for production
 - restrict private key file permissions
 - rotate certificates before expiry and restart `parse`
 
+---
+
 ## 4) Additional SSL Build/Run/Maintenance Notes (Including Clients)
 
-Compatibility notes:
+### Compatibility Notes
 
-- server uses OpenSSL TLS server mode with minimum TLS 1.2 when available in headers
+- server uses OpenSSL TLS server mode
+- minimum TLS version is TLS 1.2 when supported by available OpenSSL headers
 - clients must start directly with TLS (no STARTTLS handshake mode)
 
-Known compatible clients:
+### Known Compatible Clients
 
 - `openssl s_client` (used by the SSL test harness)
 - custom TLS-capable line-oriented clients
 - plain `nc`/telnet are for non-SSL mode only
 
-Rollout/maintenance approach:
+### Rollout and Maintenance Approach
 
 1. build with `USE_SSL=1`
 2. validate non-SSL behavior
@@ -132,7 +144,7 @@ Rollback:
 
 - set `MUD_SSL` false or unset it, then restart
 
-Common SSL failures:
+### Common SSL Failures
 
 - missing OpenSSL headers/libraries at build time
 - invalid cert/key paths
