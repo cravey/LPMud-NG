@@ -38,7 +38,7 @@ extract_status_map() {
   local out_tsv="$2"
 
   {
-    rg -o '\[(PASS|FAIL)\]\[[^]]+\]' "$session_log" || true
+    grep -Eo '\[(PASS|FAIL)\]\[[^]]+\]' "$session_log" || true
   } | sed -E 's/\[(PASS|FAIL)\]\[([^]]+)\]/\2\t\1/' \
     | awk -F'\t' '{ status[$1]=$2 } END { for (id in status) print id "\t" status[id] }' \
     | sort >"$out_tsv"
@@ -103,8 +103,8 @@ run_suite_for_driver() {
   wait "$CURRENT_PARSE_PID" >/dev/null 2>&1 || true
   CURRENT_PARSE_PID=""
 
-  summary_line="$(rg -n 'TEST_SUMMARY total=' "$run_subdir/session.log" -N | tail -n 1 || true)"
-  expect_line="$(rg -n 'SUITE_RESULT total=' "$run_subdir/expect.log" -N | tail -n 1 || true)"
+  summary_line="$(grep -n 'TEST_SUMMARY total=' "$run_subdir/session.log" | tail -n 1 || true)"
+  expect_line="$(grep -n 'SUITE_RESULT total=' "$run_subdir/expect.log" | tail -n 1 || true)"
   extract_status_map "$run_subdir/session.log" "$run_subdir/status.tsv"
 
   cat >"$run_subdir/RESULT.txt" <<EOF
@@ -117,7 +117,7 @@ Expect line: $expect_line
 EOF
 }
 
-require_cmd rg
+require_cmd grep
 require_cmd sed
 require_cmd awk
 require_cmd expect

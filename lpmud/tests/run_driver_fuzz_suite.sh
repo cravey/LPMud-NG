@@ -116,7 +116,7 @@ for seed in "${SEEDS[@]}"; do
 done
 
 TOTAL_REPORTS="$(find "$RUN_DIR" -maxdepth 1 -name 'fuzz_seed_*.json' | wc -l | tr -d ' ')"
-CRASH_SUSPECTED="$( (rg -n '"crash_suspected": true' "$RUN_DIR"/fuzz_seed_*.json -N 2>/dev/null || true) | wc -l | tr -d ' ')"
+CRASH_SUSPECTED="$( (grep -n '"crash_suspected": true' "$RUN_DIR"/fuzz_seed_*.json 2>/dev/null || true) | wc -l | tr -d ' ')"
 
 cat >"$RUN_DIR/SUMMARY.txt" <<EOF
 Driver fuzz suite completed.

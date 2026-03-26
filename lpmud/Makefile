@@ -201,7 +201,18 @@ ci-analyze:
 
 ci: ci-warnings ci-sanitize ci-analyze
 
+mudlibtest:
+	@set -e; \
+	output="$$(./tests/run_test_mudlib_suite.sh)"; \
+	printf '%s\n' "$$output"; \
+	run_dir_rel="$$(printf '%s\n' "$$output" | sed -n 's/^==> Done: //p' | tail -n 1)"; \
+	if [ -n "$$run_dir_rel" ] && [ -f "$$run_dir_rel/SUMMARY.txt" ]; then \
+		echo ""; \
+		echo "==> Mudlib test summary ($$run_dir_rel/SUMMARY.txt)"; \
+		cat "$$run_dir_rel/SUMMARY.txt"; \
+	fi
+
 .PHONY: all clean lint diff debug parse frontend count_active \
-	ci ci-warnings ci-sanitize ci-analyze
+	ci ci-warnings ci-sanitize ci-analyze mudlibtest
 
 all: parse count_active

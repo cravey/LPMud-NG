@@ -97,8 +97,8 @@ expect "$TEST_DIR/test_mudlib_suite.exp" \
   --transcript "$RUN_DIR/session.log" \
   >"$RUN_DIR/expect.log" 2>&1
 
-SUMMARY_LINE="$(rg -n 'TEST_SUMMARY total=' "$RUN_DIR/session.log" -N | tail -n 1 || true)"
-RESULT_LINE="$(rg -n 'SUITE_RESULT total=' "$RUN_DIR/expect.log" -N | tail -n 1 || true)"
+SUMMARY_LINE="$(grep -n 'TEST_SUMMARY total=' "$RUN_DIR/session.log" | tail -n 1 || true)"
+RESULT_LINE="$(grep -n 'SUITE_RESULT total=' "$RUN_DIR/expect.log" | tail -n 1 || true)"
 
 cat >"$RUN_DIR/SUMMARY.txt" <<EOF
 Test mudlib SSL suite completed.

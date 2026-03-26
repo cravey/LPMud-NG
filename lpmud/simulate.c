@@ -1928,15 +1928,16 @@ int player_parser(char *buff)
 	last_verb = 0;
 	current_object = save_current_object;
 	/* If we get fail from the call, it was wrong second argument. */
-	if (ret && ret->type == T_NUMBER && ret->u.number == 0)
+	if (ret && ret->type == T_NUMBER && ret->u.number == 0) {
 	    continue;
-	    if (s && s->ob->wl && command_giver->interactive &&
-	      !command_giver->is_wizard)
-		s->ob->wl->score++;
-	    if (ret == 0)
-		add_message("Error: function %s not found.\n",
-			    called_function ? called_function : "<null>");
-	    break;
+	}
+	if (s && s->ob->wl && command_giver->interactive &&
+	  !command_giver->is_wizard)
+	    s->ob->wl->score++;
+	if (ret == 0)
+	    add_message("Error: function %s not found.\n",
+			called_function ? called_function : "<null>");
+	break;
 	}
     if (s == 0) {
 	notify_no_command();
