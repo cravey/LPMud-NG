@@ -28,7 +28,11 @@ YFLAGS=-d
 LEX=lex
 #LEX=flex
 UNAME_S := $(shell uname -s)
-CC ?= cc
+# GNU Make defines CC=cc by default. Use clang unless the user explicitly
+# provides CC (command line, environment, or another makefile include).
+ifeq ($(origin CC),default)
+CC := clang
+endif
 PLATFORM_CPPFLAGS :=
 ifeq ($(UNAME_S),Linux)
 PLATFORM_CPPFLAGS += -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L

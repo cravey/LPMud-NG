@@ -99,7 +99,8 @@ void debug_message(char *fmt, ...)
 
     if (fp == NULL) {
 	gethostname(name,sizeof name);
-	sprintf(deb,"%s.debug.log",name);
+	name[sizeof(name) - 1] = '\0';
+	(void)snprintf(deb, sizeof deb, "%s.debug.log", name);
 	fp = fopen(deb, "w");
 	if (fp == NULL) {
 	    perror(deb);
