@@ -4,7 +4,7 @@
 
 - Purpose: deterministic, driver-focused LPC validation using one command: `runtests`.
 - Suite size and PASS/FAIL totals intentionally are not hard-coded here; they change as probes evolve.
-- Security regression probes include `SEC-001` and `SEC-002`.
+- Security regression probes include `SEC-001`..`SEC-009` (with a small quarantined subset noted below).
 - Recommended execution: automated wrappers in `lpmud/tests/` (non-interactive).
 
 To get current results, run:
@@ -31,6 +31,7 @@ Also available:
 ./tests/run_test_mudlib_ssl_suite.sh
 ./tests/run_driver_differential_suite.sh
 ./tests/run_driver_fuzz_suite.sh
+./tests/run_driver_security_suite.sh
 ./tests/run_driver_mutation_suite.sh
 python3 tests/mine_driver_targets.py --source-root .
 ```
@@ -88,6 +89,7 @@ Suite areas covered by default `runtests`:
 - Branch-mined abstractions: additional portable checks (`BRM-001`..`BRM-008`).
 - Object/inventory lifecycle: clone/find/destruct/move/transfer edge behavior.
 - Security/privilege probes: low-level `ed/snoop/shutdown` denial and path boundary checks.
+- Security hardening regressions: transfer policy guard, wizard save boundary, long-message handling, list-files robustness, restore boundary handling, command-injection guard, parser plural-form stability.
 - Async behavior: `call_out`, `remove_call_out`, ordering, `heart_beat`, `input_to`, `input_to(noecho)`, race handling.
 
 ---
@@ -100,6 +102,7 @@ These are intentionally excluded from default `runtests` because older drivers m
 - `weightdestructhazard`
 - `commandlenhazard`
 - `pathcharhazard`
+- selected path/editor/network edge probes are validated by `tests/run_driver_security_suite.sh` instead of in-process LPC checks
 - hard-link-only efuns (`people`, `localcmd`, `add_adj`, `add_subst`, `regcomp`, `regexec`) are tracked as quarantined contract checks
 
 Run hazard probes only in isolated processes/sessions.

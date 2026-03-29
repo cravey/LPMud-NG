@@ -74,6 +74,10 @@ BUILD_MODE_VALUE := USE_SSL=$(USE_SSL);OPENSSL_ROOT=$(OPENSSL_ROOT)
 CI_STRICT_CFLAGS ?= -Wall -Wextra -Wpedantic -Werror -Wno-sign-compare
 CI_SANITIZE_FLAGS ?= -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -Wno-sign-compare -Wno-deprecated-declarations
 CI_ANALYZE_FLAGS ?= -std=c23 $(CPPFLAGS) -DTRACE -D$(RAND) -DLEX -DMALLOC_$(MALLOC) -Wno-sign-compare -Wno-deprecated-declarations
+CLANG_TIDY ?= /opt/homebrew/opt/llvm/bin/clang-tidy
+# Keep ci-tidy focused on actionable defects for this legacy codebase.
+CI_TIDY_CHECKS ?= -checks=-*,bugprone-implicit-widening-of-multiplication-result,bugprone-misplaced-widening-cast,bugprone-unchecked-string-to-number-conversion,bugprone-unused-return-value,bugprone-signal-handler,clang-analyzer-*,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,-clang-analyzer-security.insecureAPI.rand,-clang-analyzer-security.VAList
+CI_TIDY_WARNINGS_AS_ERRORS ?= *
 # Analyze only hand-maintained sources; yacc/lex output is generated and noisy.
 ANALYZE_SOURCES = $(filter %.c,$(SRC)) comm2.c frontend.c count_active.c
 #
@@ -199,6 +203,22 @@ ci-analyze:
 		exit 1; \
 	fi
 
+ci-tidy:
+	$(MAKE) clean
+	$(MAKE) lang.c lexical.c
+	@tidy_bin=""; \
+	if [ -x "$(CLANG_TIDY)" ]; then \
+		tidy_bin="$(CLANG_TIDY)"; \
+	elif command -v clang-tidy >/dev/null 2>&1; then \
+		tidy_bin=$$(command -v clang-tidy); \
+	fi; \
+	if [ -z "$$tidy_bin" ]; then \
+		echo 'clang-tidy is required for ci-tidy'; \
+		exit 1; \
+	fi; \
+	"$$tidy_bin" $(CI_TIDY_CHECKS) --warnings-as-errors='$(CI_TIDY_WARNINGS_AS_ERRORS)' \
+		$(ANALYZE_SOURCES) -- $(CI_ANALYZE_FLAGS)
+
 ci: ci-warnings ci-sanitize ci-analyze
 
 mudlibtest:
@@ -212,7 +232,18 @@ mudlibtest:
 		cat "$$run_dir_rel/SUMMARY.txt"; \
 	fi
 
+securitytest:
+	@set -e; \
+	output="$$(./tests/run_driver_security_suite.sh)"; \
+	printf '%s\n' "$$output"; \
+	run_dir_rel="$$(printf '%s\n' "$$output" | sed -n 's/^==> Done: //p' | tail -n 1)"; \
+	if [ -n "$$run_dir_rel" ] && [ -f "$$run_dir_rel/SUMMARY.txt" ]; then \
+		echo ""; \
+		echo "==> Security suite summary ($$run_dir_rel/SUMMARY.txt)"; \
+		cat "$$run_dir_rel/SUMMARY.txt"; \
+	fi
+
 .PHONY: all clean lint diff debug parse frontend count_active \
-	ci ci-warnings ci-sanitize ci-analyze mudlibtest
+	ci ci-warnings ci-sanitize ci-analyze ci-tidy mudlibtest securitytest
 
 all: parse count_active

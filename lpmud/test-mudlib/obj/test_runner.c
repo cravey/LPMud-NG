@@ -124,6 +124,11 @@ start_suite(ob) {
     test_restore_malformed_file();
     test_save_object_wizard_path_boundary();
     test_privileged_efun_access_controls();
+    test_messaging_bounds_security();
+    test_list_files_security_guards();
+    test_restore_object_boundary_guards();
+    test_create_wizard_injection_guard();
+    test_parse_plural_stability_guards();
     test_query_weight_self_destruct_transfer();
     test_find_living_long_name();
     test_destruct_living_with_living_inventory();
@@ -813,6 +818,173 @@ test_privileged_efun_access_controls() {
     else
         record_fail("SEC-003", "privileged efuns deny low-level callers",
                     "ed_denied=" + ed_denied + ", snoop_denied=" + snoop_denied + ", shutdown_cmd=" + shutdown_denied);
+}
+
+test_messaging_bounds_security() {
+    object env, sink;
+    string payload, seen;
+    string trap1, trap2;
+    int pre_ping, post_ping;
+
+    env = environment(owner);
+    sink = clone_object("obj/msg_sink");
+    if (!sink) {
+        record_fail("SEC-005", "messaging primitives remain bounded on long payloads",
+                    "msg_sink clone returned 0");
+        return;
+    }
+    move_object(sink, env);
+
+    payload = "SEC005_BEGIN_" + repeat_text("x", 2300) + "_SEC005_END";
+    call_other(sink, "clear_seen");
+    trap1 = catch(tell_object(sink, payload + "\n"));
+    trap2 = catch(tell_room(env, payload + "\n"));
+    seen = call_other(sink, "query_seen");
+
+    pre_ping = call_other(owner, "query_ping_hits");
+    command("ping", owner);
+    post_ping = call_other(owner, "query_ping_hits");
+
+    if (!trap1 && !trap2 &&
+        contains_fragment(seen, "SEC005_BEGIN_") &&
+        post_ping == pre_ping + 1)
+        record_pass("SEC-005", "messaging primitives remain bounded on long payloads");
+    else {
+        if (!trap1)
+            trap1 = "0";
+        if (!trap2)
+            trap2 = "0";
+        record_fail("SEC-005", "messaging primitives remain bounded on long payloads",
+                    "trap_tell_object=" + trap1 + ", trap_tell_room=" + trap2 +
+                    ", seen_begin=" + contains_fragment(seen, "SEC005_BEGIN_") +
+                    ", ping_advanced=" + (post_ping == pre_ping + 1));
+    }
+
+    destruct(sink);
+}
+
+test_list_files_security_guards() {
+    string trap;
+    int i, ok, rc;
+    string fname;
+
+    rmdir("data/ls_sec_case");
+    mkdir("data/ls_sec_case");
+    write_file("data/ls_sec_case/a", "1\n");
+    write_file("data/ls_sec_case/bb", "1\n");
+    write_file("data/ls_sec_case/ccc", "1\n");
+    write_file("data/ls_sec_case/this_name_is_deliberately_long_for_truncation_probe_0123456789", "1\n");
+
+    ok = 1;
+    trap = 0;
+    for (i = 0; i < 200; i += 1) {
+        trap = catch(rc = ls("data/ls_sec_case", ""));
+        if (trap) {
+            ok = 0;
+            break;
+        }
+        if (!intp(rc)) {
+            ok = 0;
+            trap = "ls() did not return int";
+            break;
+        }
+    }
+
+    if (ok)
+        record_pass("SEC-006", "list_files() handles short/long names and repeated listings safely");
+    else {
+        if (!trap)
+            trap = "0";
+        record_fail("SEC-006", "list_files() handles short/long names and repeated listings safely",
+                    "trap=" + trap + ", iteration=" + i);
+    }
+
+    rm("data/ls_sec_case/a");
+    rm("data/ls_sec_case/bb");
+    rm("data/ls_sec_case/ccc");
+    fname = "data/ls_sec_case/this_name_is_deliberately_long_for_truncation_probe_0123456789";
+    rm(fname);
+    rmdir("data/ls_sec_case");
+}
+
+test_restore_object_boundary_guards() {
+    object blob;
+    string trap, long_var;
+    int ok;
+
+    blob = clone_object("obj/state_blob");
+    if (!blob) {
+        record_fail("SEC-007", "restore_object() remains bounded on boundary-shaped data", "clone returned 0");
+        return;
+    }
+
+    long_var = repeat_text("A", 160);
+    rm("data/restore_longvar_case.o");
+    write_file("data/restore_longvar_case.o", long_var + " 1\n");
+
+    trap = catch(ok = call_other(blob, "do_restore", "data/restore_longvar_case"));
+    if (trap || !ok)
+        record_pass("SEC-007", "restore_object() remains bounded on boundary-shaped data");
+    else
+        record_fail("SEC-007", "restore_object() remains bounded on boundary-shaped data",
+                    "restore unexpectedly returned success on oversized variable name");
+
+    rm("data/restore_longvar_case.o");
+    destruct(blob);
+}
+
+test_create_wizard_injection_guard() {
+    string trap;
+    int marker;
+    string marker_path;
+
+    marker_path = "data/sec009_marker";
+    rm(marker_path);
+    trap = catch(create_wizard("secx;echo PWNED > data/sec009_marker"));
+    marker = file_size(marker_path);
+
+    if (trap && marker < 0)
+        record_pass("SEC-008", "create_wizard() rejects shell-metacharacter payloads safely");
+    else
+        record_fail("SEC-008", "create_wizard() rejects shell-metacharacter payloads safely",
+                    "trap=" + (trap ? trap : "0") + ", marker_size=" + marker);
+
+    rm(marker_path);
+}
+
+test_parse_plural_stability_guards() {
+    int i, ok, rc;
+    string trap;
+    string *cases;
+    string noun;
+    string tail;
+
+    cases = ({ "wolves", "knives", "cities", "heroes", "boxes", "glasses", "churches", "babies" });
+    ok = 1;
+    trap = 0;
+    for (i = 0; i < sizeof(cases); i += 1) {
+        noun = "";
+        tail = "";
+        trap = catch(rc = parse_command("take all " + cases[i], ({ owner }), "take all %s", noun));
+        if (trap || !intp(rc) || rc < 0 || rc > 1) {
+            ok = 0;
+            break;
+        }
+        trap = catch(rc = parse_command("look at " + cases[i], ({ owner }), "look at %s", tail));
+        if (trap || !intp(rc) || rc < 0 || rc > 1) {
+            ok = 0;
+            break;
+        }
+    }
+
+    if (ok)
+        record_pass("SEC-009", "plural/name parser paths remain bounded on edge plural forms");
+    else {
+        if (!trap)
+            trap = "0";
+        record_fail("SEC-009", "plural/name parser paths remain bounded on edge plural forms",
+                    "trap=" + trap + ", index=" + i);
+    }
 }
 
 test_query_weight_self_destruct_transfer() {

@@ -20,7 +20,7 @@ This directory contains:
 - Runtime content: `mudlib/`
 - Driver-focused test content: `test-mudlib/`
 - Test harness and utilities: `tests/`
-- Supporting docs: [QUICKSTART.md](QUICKSTART.md), [DEPENDENCIES.md](DEPENDENCIES.md), [SECURITY.md](SECURITY.md), [SSL.md](SSL.md)
+- Supporting docs: [QUICKSTART.md](QUICKSTART.md), [DEPENDENCIES.md](DEPENDENCIES.md), [SECURITY.md](SECURITY.md), [BUGS.md](BUGS.md), [SSL.md](SSL.md)
 
 ---
 
@@ -52,11 +52,14 @@ Run commands from this directory (`lpmud/`).
 - `make ci-warnings`: strict warning gate (`-Wall -Wextra -Wpedantic -Werror`)
 - `make ci-sanitize`: AddressSanitizer/UBSan build gate
 - `make ci-analyze`: static analysis (`clang --analyze`)
+- `make ci-tidy`: calibrated clang-tidy checks for high-signal bug/security patterns
 - `make ci`: run all three validation gates
+  - note: `ci-tidy` is intentionally standalone and not included in `make ci`
 
 ### Driver Suite Convenience Target
 
 - `make mudlibtest`: runs `./tests/run_test_mudlib_suite.sh` and prints suite summary
+- `make securitytest`: runs `./tests/run_driver_security_suite.sh` and prints integration-security summary
 
 ### CI vs Test-Suite Scope
 
@@ -65,10 +68,13 @@ Run commands from this directory (`lpmud/`).
 | `make ci-warnings` | compile warnings (`-Wall -Wextra -Wpedantic -Werror`) | no | no |
 | `make ci-sanitize` | sanitizer compile/link gate | no | no |
 | `make ci-analyze` | static analysis (`clang --analyze`) | no | no |
+| `make ci-tidy` | calibrated static lint (`clang-tidy`) | no | no |
 | `make ci` | all three CI compile/analyze gates above | no | no |
 | `make mudlibtest` | dedicated `test-mudlib` behavioral suite | yes | yes |
+| `make securitytest` | driver/network security integration suite | yes | yes |
 
-If you need behavioral runtime validation, run `make mudlibtest` in addition to `make ci`.
+If you need stronger static coverage, run `make ci-tidy` in addition to `make ci`.
+If you need behavioral runtime validation, run `make mudlibtest` and `make securitytest` as well.
 
 ### SSL Build (Optional)
 

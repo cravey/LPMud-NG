@@ -1,7 +1,7 @@
 # LPmud Driver Security Review
 
 - **Date:** 2026-02-21
-- **Last Updated:** 2026-03-09 (includes transfer/save boundary hardening and exploitability detail for all listed issues)
+- **Last Updated:** 2026-03-29 (includes ci-tidy follow-up triage and open security-adjacent issues under investigation)
 
 
 ## Scope
@@ -278,10 +278,100 @@
 - **Validation references:**
   - test-mudlib ID `SEC-002`
 
+## Security Regression Coverage (Current)
+
+- `SEC-001`: covered in default `runtests` (`test_mudlib`).
+- `SEC-002`: covered in default `runtests` (`test_mudlib`).
+- `SEC-003`: covered in default `runtests` (`test_mudlib`) for privileged efun gates.
+- `SEC-004`: intentionally quarantined from default `runtests`; exercised via isolated hazard command.
+- `SEC-005`: covered in default `runtests` (`test_mudlib`) for bounded long-message handling.
+- `SEC-006`: covered in default `runtests` (`test_mudlib`) for `list_files` short/long-name stability.
+- `SEC-007`: covered in default `runtests` (`test_mudlib`) for `restore_object` boundary-shaped input.
+- `SEC-008`: covered in default `runtests` (`test_mudlib`) for `create_wizard` metachar payload rejection.
+- `SEC-009`: covered in default `runtests` (`test_mudlib`) for parser plural/name boundedness.
+- `SECNET-001`: covered by `tests/run_driver_security_suite.sh` (listener bind-default integration check).
+- `SECNET-002`: covered by `tests/run_driver_security_suite.sh` (malformed `ACCESS.DENY` admission robustness).
+- `SECNET-003`: covered by `tests/run_driver_security_suite.sh` (newline-heavy socket payload resilience).
+- `SECNET-004`: tracked in the integration suite as environment-dependent; currently `SKIP` in generic harness runs.
+
+## Potential Security Issues Under Investigation
+
+### 15. restore_object() variable-name parse may write past fixed stack buffer
+- **Status:** Open (confirmed bug; not yet patched)
+- **Risk class:** High memory safety (local file-content-triggered corruption).
+- **What this vulnerability means:**
+  - `restore_object()` parses a variable token into `char var[100]` using an
+    unbounded copy length derived from input (`space - buff`).
+  - If the token before the first space exceeds 99 bytes, `var[space - buff]`
+    can write out of bounds on stack memory.
+- **How an attacker could exploit it (current branch):**
+  - Provide crafted object-save content with an overlong field name token.
+  - Trigger restore on that file to corrupt stack state and crash the driver;
+    exploitability beyond DoS depends on platform/compiler hardening.
+- **Practical attacker prerequisites:**
+  - Ability to influence restore-file contents and trigger `restore_object()`.
+- **Security impact:**
+  - Potential denial of service; possible memory-corruption class escalation in
+    weaker hardening environments.
+- **Code references:**
+  - object.c:158
+  - object.c:159
+- **Tracking references:**
+  - BUGS.md `[UNFIXED][HIGH]` entry.
+
+### 16. signal-handler shutdown path may violate async-signal-safety constraints
+- **Status:** Under investigation
+- **Risk class:** Medium availability/reliability.
+- **What this issue means:**
+  - `backend.c` installs `startshutdowngame` as a `SIGHUP` handler directly.
+  - If that path (or callees) performs non-async-signal-safe operations, behavior
+    in signal context is undefined and may deadlock or crash.
+- **How this could be abused:**
+  - Repeated signal delivery during busy runtime windows can destabilize control
+    flow and force shutdown/crash behavior.
+- **Practical attacker prerequisites:**
+  - Ability to send process signals (typically local operator/co-tenant scope).
+- **Security impact:**
+  - Availability degradation; primarily DoS-class risk.
+- **Code references:**
+  - backend.c:126
+- **Tracking references:**
+  - BUGS.md `[UNVERIFIED][MEDIUM]` entry.
+
+### 17. unchecked numeric parsing in input/file paths (atoi/sscanf)
+- **Status:** Under investigation
+- **Risk class:** Medium input-validation weakness (context dependent).
+- **What this issue means:**
+  - Multiple paths parse numbers with `atoi()` or loose `sscanf("%d", ...)`
+    checks and do not validate full-string parse success or range.
+  - Malformed values may be accepted silently as `0`/truncated integers.
+- **How this could be abused:**
+  - Feed malformed numeric fields in command or file-driven paths to force
+    unexpected control behavior, misconfiguration of limits, or logic bypass
+    in edge cases.
+- **Practical attacker prerequisites:**
+  - Access to affected input surfaces (`main.c`, restore/parser flows,
+    user-facing command parsing, or wizlist data files).
+- **Security impact:**
+  - Mostly integrity/reliability risk; exploitability depends on downstream use.
+- **Code references:**
+  - main.c:49
+  - object.c:171
+  - parse.c:513
+  - parse.c:1311
+  - simulate.c:606
+  - wiz_list.c:139
+  - wiz_list.c:142
+- **Tracking references:**
+  - BUGS.md `[UNVERIFIED][MEDIUM]` entry.
+
 ## Remaining Issues (Ordered By Risk To System Data Integrity)
 
-### 1. No unresolved driver-level integrity-critical issues remain from the previously reported list in this branch, including `SEC-001` and `SEC-002`.
-- Note: This does not guarantee absence of vulnerabilities outside the audited paths.
+### 1. Open high-confidence memory-safety issue in `restore_object()` parse path (see item 15).
+
+### 2. Security-adjacent hardening work remains for signal-handler safety and checked numeric parsing (items 16-17).
+
+- Note: `SEC-001` and `SEC-002` remain fixed in this branch; the open items above were identified in later static-analysis follow-up.
 
 ## Residual Risk Notes
 - Mudlib LPC policy (`valid_read`, `valid_write`, command-level authorization) still determines real-world security posture.

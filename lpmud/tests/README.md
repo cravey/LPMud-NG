@@ -17,6 +17,7 @@ All generated artifacts are written under `lpmud/tests/reports/` in timestamped 
 | `run_engine_functional_suite.sh` | shell runner | Classic mudlib end-to-end checks (new + existing player flows) plus static mudlib analysis. | `mudlib/`, `nc_engine_suite.exp`, `analyze_mudlib.py` | `tests/reports/engine_suite_<ts>/` |
 | `run_driver_differential_suite.sh` | shell runner | Runs the dedicated suite against NG and orig parse binaries, compares PASS/FAIL ID maps. | NG parse, orig parse, `test_mudlib_suite.exp` | `tests/reports/driver_diff_suite_<ts>/diff.tsv` |
 | `run_driver_fuzz_suite.sh` | shell runner | Isolated command-surface fuzz runs against live driver. | `fuzz_driver_surface.py`, `test-mudlib/` | `tests/reports/driver_fuzz_suite_<ts>/` |
+| `run_driver_security_suite.sh` | shell runner | Driver/network security regressions not suitable for in-process LPC-only coverage (bind defaults, ACCESS.DENY robustness, newline payload resilience). | `parse`, `test-mudlib/`, `nc`, `lsof` | `tests/reports/driver_security_suite_<ts>/` |
 | `run_driver_mutation_suite.sh` | shell wrapper | Thin wrapper for mutation orchestrator. | `run_driver_mutation_suite.py` | Delegates to Python runner output |
 | `run_driver_mutation_suite.py` | python runner | Applies targeted source mutations in isolated copies, reruns dedicated suite, classifies killed/survived mutants. | `run_test_mudlib_suite.sh` | `tests/reports/driver_mutation_suite_<ts>/` |
 | `fuzz_driver_surface.py` | python worker | Randomized interactive socket fuzzer with anomaly/crash-suspected reporting. | live driver on host/port | per-seed `.json` and transcript logs |
@@ -58,7 +59,7 @@ Independent static mining:
 ## Relationship To `lpmud/Makefile`
 
 1. `make mudlibtest` calls `./tests/run_test_mudlib_suite.sh`, then prints the generated `SUMMARY.txt` when present.
-2. `make ci-warnings`, `make ci-sanitize`, `make ci-analyze`, and `make ci` do compiler/analyzer checks only; they do not call scripts from this directory.
+2. `make ci-warnings`, `make ci-sanitize`, `make ci-analyze`, `make ci-tidy`, and `make ci` do compiler/analyzer checks only; they do not call scripts from this directory.
 3. `make clean` removes `tests/reports/*` (along with build artifacts), so prior test run artifacts are cleared.
 
 ---
@@ -70,12 +71,14 @@ Independent static mining:
 | `make ci-warnings` | compiler warning gate | no | no | strict warning policy |
 | `make ci-sanitize` | sanitizer compile/link gate | no | no | checks ASAN/UBSAN build configuration |
 | `make ci-analyze` | static analysis | no | no | `clang --analyze` |
+| `make ci-tidy` | calibrated static lint | no | no | `clang-tidy` check set tuned for actionable findings |
 | `make ci` | aggregate CI compile/analyze gates | no | no | does not execute gameplay/runtime flows |
 | `make mudlibtest` | dedicated behavioral runtime suite | yes | yes | primary regression command for driver behavior |
+| `make securitytest` | driver/network security integration suite | yes | yes | covers startup/bind/admission/payload regressions outside LPC-only scope |
 | `./tests/run_engine_functional_suite.sh` | classic mudlib functional flow | yes | yes | gameplay/session checks on `mudlib/` |
 | `./tests/run_test_mudlib_ssl_suite.sh` | dedicated suite under TLS | yes | yes | validates SSL-enabled runtime path |
 
-Use `make ci` plus at least one runtime suite (typically `make mudlibtest`) for balanced confidence.
+Use `make ci` + `make ci-tidy` plus at least one runtime suite (typically `make mudlibtest`) for balanced confidence.
 
 ---
 
@@ -89,6 +92,7 @@ Run from `lpmud/`:
 ./tests/run_engine_functional_suite.sh
 ./tests/run_driver_differential_suite.sh
 ./tests/run_driver_fuzz_suite.sh
+./tests/run_driver_security_suite.sh
 ./tests/run_driver_mutation_suite.sh
 python3 tests/mine_driver_targets.py --source-root .
 python3 tests/analyze_mudlib.py --mudlib-root mudlib --output-dir tests/reports/static_only
@@ -98,6 +102,7 @@ Equivalent Make entry point for the primary dedicated suite:
 
 ```bash
 make mudlibtest
+make securitytest
 ```
 
 ---

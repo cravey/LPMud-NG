@@ -31,8 +31,10 @@ Optional build extension:
 | `make ci-warnings` | same as build toolchain | yes | `Makefile` |
 | `make ci-sanitize` | compiler with sanitizer support | yes | `Makefile` |
 | `make ci-analyze` | `clang` | yes for this target | `Makefile` checks `command -v clang` |
+| `make ci-tidy` | `clang-tidy` | yes for this target | `Makefile` prefers `/opt/homebrew/opt/llvm/bin/clang-tidy`, falls back to `command -v clang-tidy` |
 | `make ci` | inherits `ci-*` dependencies | yes | `Makefile` |
 | `make mudlibtest` | test-suite script dependencies | yes for this target | `tests/run_test_mudlib_suite.sh` |
+| `make securitytest` | test-suite script dependencies | yes for this target | `tests/run_driver_security_suite.sh` |
 | `make lint` | `lint` | yes for this target | `Makefile` `lint: *.c` |
 | `make TAGS` | `etags` | yes for this target | `Makefile` `TAGS: etags $(SRC)` |
 | `make diff` | `make_diffs` helper command | yes for this target | `Makefile` `diff:` rule |
@@ -111,6 +113,7 @@ From `lpmud/`, quick checks:
 ```bash
 command -v make cc lex yacc
 command -v clang expect nc lsof uuidgen mktemp
+command -v clang-tidy
 command -v openssl grep sed awk tail
 command -v etags lint
 ```

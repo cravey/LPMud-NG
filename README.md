@@ -19,6 +19,12 @@ Quick sanity run from `lpmud/`:
 make parse && make mudlibtest
 ```
 
+Security regression pass (integration-level) from `lpmud/`:
+
+```bash
+make securitytest
+```
+
 ---
 
 ## Documentation Guide
@@ -35,6 +41,7 @@ make parse && make mudlibtest
 - [lpmud/QUICKSTART.md](lpmud/QUICKSTART.md): driver architecture and maintainer workflow.
 - [lpmud/SSL.md](lpmud/SSL.md): canonical SSL/TLS build and runtime guide.
 - [lpmud/SECURITY.md](lpmud/SECURITY.md): driver security review and remediation tracker.
+- [lpmud/BUGS.md](lpmud/BUGS.md): canonical bug status tracker (fixed, unfixed, and unverified items).
 
 ### Mudlib Docs
 
@@ -57,15 +64,15 @@ make parse && make mudlibtest
 5. **64-bit portability hardening**: corrected pointer/cast and memory-safety edge cases for modern systems.
 6. **Precompiler/platform compatibility**: improved portability assumptions across macOS/Linux/FreeBSD.
 7. **Security-focused pass**: reviewed and patched high-confidence issues; tracking remains in [lpmud/SECURITY.md](lpmud/SECURITY.md) and `lpmud/ISSUES`.
-8. **CI safety gates**: established repeatable `ci-warnings`, `ci-sanitize`, `ci-analyze`, and aggregate `ci`.
+8. **CI safety gates**: established repeatable `ci-warnings`, `ci-sanitize`, `ci-analyze`, calibrated `ci-tidy`, and aggregate `ci`.
 9. **Mudlib topology tooling**: added room/castle graph generation under `lpmud/tools/`.
-10. **Current status**: latest verification showed `make ci` succeeding with tracked hard analyzer issues resolved.
+10. **Current status**: latest verification showed `make ci` succeeding with tracked hard analyzer issues resolved; `make ci-tidy` is tracked separately for targeted static findings.
 
 ---
 
 ## Driver-Focused Test Suites
 
-The repository includes three complementary test paths focused on code running on top of `parse`:
+The repository includes four complementary test paths focused on code running on top of `parse`:
 
 ### 1) Dedicated LPC Engine Test Mudlib (`lpmud/test-mudlib`)
 
@@ -84,6 +91,12 @@ The repository includes three complementary test paths focused on code running o
 - Purpose: heuristic reports for monster difficulty/weapon drops and LPC feature usage.
 - Entry point: `cd lpmud && python3 tests/analyze_mudlib.py --mudlib-root mudlib --output-dir tests/reports/static_only`
 - Docs: [lpmud/tests/README.md](lpmud/tests/README.md)
+
+### 4) Driver Security Integration Suite
+
+- Purpose: integration security regressions that are not ideal as in-process LPC-only checks (listener binding defaults, ACCESS.DENY admission hardening, newline-heavy socket payload resilience).
+- Entry point: `cd lpmud && ./tests/run_driver_security_suite.sh` (or `make securitytest`)
+- Docs: [lpmud/tests/README.md](lpmud/tests/README.md) and [lpmud/SECURITY.md](lpmud/SECURITY.md)
 
 All generated test artifacts are written under `lpmud/tests/reports/`.
 

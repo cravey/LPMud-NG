@@ -137,6 +137,7 @@ Validation gates:
 - `make ci-warnings` (strict warnings)
 - `make ci-sanitize` (ASAN/UBSAN)
 - `make ci-analyze` (clang static analysis)
+- `make ci-tidy` (calibrated clang-tidy checks; standalone, not part of `make ci`)
 
 Reference:
 
@@ -156,6 +157,6 @@ Reference:
 
 1. Reproduce with `parse` + minimal mudlib scenario.
 2. Patch with smallest possible behavioral delta.
-3. Run all CI gates (`ci-warnings`, `ci-sanitize`, `ci-analyze`).
+3. Run CI compile/analyze gates (`ci-warnings`, `ci-sanitize`, `ci-analyze`) plus `ci-tidy`.
 4. Smoke test command flow, object loading, resets/heartbeats, and persistence.
 5. Update `SECURITY.md` when fixing security-relevant defects.
