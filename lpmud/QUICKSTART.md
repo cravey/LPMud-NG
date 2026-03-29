@@ -119,7 +119,7 @@ Key files:
 
 Reference:
 
-- [`Security.txt`](Security.txt)
+- [`SECURITY.md`](SECURITY.md)
 - [`simulate.c`](simulate.c)
 - [`mudlib/obj/player.c`](mudlib/obj/player.c)
 
@@ -158,4 +158,4 @@ Reference:
 2. Patch with smallest possible behavioral delta.
 3. Run all CI gates (`ci-warnings`, `ci-sanitize`, `ci-analyze`).
 4. Smoke test command flow, object loading, resets/heartbeats, and persistence.
-5. Update `Security.txt` when fixing security-relevant defects.
+5. Update `SECURITY.md` when fixing security-relevant defects.

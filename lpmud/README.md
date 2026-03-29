@@ -20,7 +20,7 @@ This directory contains:
 - Runtime content: `mudlib/`
 - Driver-focused test content: `test-mudlib/`
 - Test harness and utilities: `tests/`
-- Supporting docs: [QUICKSTART.md](QUICKSTART.md), [DEPENDENCIES.md](DEPENDENCIES.md), [Security.txt](Security.txt), [SSL.md](SSL.md)
+- Supporting docs: [QUICKSTART.md](QUICKSTART.md), [DEPENDENCIES.md](DEPENDENCIES.md), [SECURITY.md](SECURITY.md), [SSL.md](SSL.md)
 
 ---
 

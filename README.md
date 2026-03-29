@@ -34,6 +34,7 @@ make parse && make mudlibtest
 - [lpmud/DEPENDENCIES.md](lpmud/DEPENDENCIES.md): external toolchain and runtime dependency matrix.
 - [lpmud/QUICKSTART.md](lpmud/QUICKSTART.md): driver architecture and maintainer workflow.
 - [lpmud/SSL.md](lpmud/SSL.md): canonical SSL/TLS build and runtime guide.
+- [lpmud/SECURITY.md](lpmud/SECURITY.md): driver security review and remediation tracker.
 
 ### Mudlib Docs
 
@@ -55,7 +56,7 @@ make parse && make mudlibtest
 4. **Runtime/parser hygiene**: tightened interpreter/runtime control flow and removed parser-conflict behavior.
 5. **64-bit portability hardening**: corrected pointer/cast and memory-safety edge cases for modern systems.
 6. **Precompiler/platform compatibility**: improved portability assumptions across macOS/Linux/FreeBSD.
-7. **Security-focused pass**: reviewed and patched high-confidence issues; tracking remains in `lpmud/Security.txt` and `lpmud/ISSUES`.
+7. **Security-focused pass**: reviewed and patched high-confidence issues; tracking remains in [lpmud/SECURITY.md](lpmud/SECURITY.md) and `lpmud/ISSUES`.
 8. **CI safety gates**: established repeatable `ci-warnings`, `ci-sanitize`, `ci-analyze`, and aggregate `ci`.
 9. **Mudlib topology tooling**: added room/castle graph generation under `lpmud/tools/`.
 10. **Current status**: latest verification showed `make ci` succeeding with tracked hard analyzer issues resolved.

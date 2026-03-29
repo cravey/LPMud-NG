@@ -1,82 +1,84 @@
-LPmud Driver Security Review
-Date: 2026-02-21
-Last Updated: 2026-03-09 (includes transfer/save boundary hardening and exploitability detail for all listed issues)
+# LPmud Driver Security Review
 
-Scope
+- **Date:** 2026-02-21
+- **Last Updated:** 2026-03-09 (includes transfer/save boundary hardening and exploitability detail for all listed issues)
+
+
+## Scope
 - Driver/runtime C sources in repo root (not mudlib LPC gameplay logic).
 - Focus: memory safety, privilege boundaries, file/path safety, and remote attack surface.
 
-Fixed In Current Branch
+## Fixed In Current Branch
 
-1. say()/tell_room() missing NUL termination after strncpy
-- Status: Fixed
-- Risk class: Memory safety / possible stack over-read in message handling.
-- What this vulnerability meant:
+### 1. say()/tell_room() missing NUL termination after strncpy
+- **Status:** Fixed
+- **Risk class:** Memory safety / possible stack over-read in message handling.
+- **What this vulnerability meant:**
   - Message buffers copied with `strncpy` were not always explicitly NUL-terminated.
   - Later string operations could read beyond intended bounds into adjacent memory.
-- How an attacker could exploit it (pre-fix):
+- **How an attacker could exploit it (pre-fix):**
   - Send crafted long chat/message payloads to trigger over-read behavior in message formatting paths.
   - Convert routine messaging into a crash vector (denial of service), with possible accidental memory disclosure in edge cases.
-- Practical attacker prerequisites:
+- **Practical attacker prerequisites:**
   - Ability to send message content that reaches `say()`/`tell_room()` paths.
-- Security impact:
+- **Security impact:**
   - Process instability/crash risk, plus potential out-of-bounds read side effects.
-- Fix references:
+- **Fix references:**
   - simulate.c:905
   - simulate.c:906
   - simulate.c:909
   - simulate.c:910
 
-2. list_files() out-of-bounds access on short names and truncation safety
-- Status: Fixed
-- Risk class: Memory safety / undefined behavior.
-- What this vulnerability meant:
+### 2. list_files() out-of-bounds access on short names and truncation safety
+- **Status:** Fixed
+- **Risk class:** Memory safety / undefined behavior.
+- **What this vulnerability meant:**
   - Filename handling in `list_files()` used unsafe indexing/truncation assumptions for short or edge-length names.
   - This could trigger out-of-bounds access or undefined behavior during directory listing.
-- How an attacker could exploit it (pre-fix):
+- **How an attacker could exploit it (pre-fix):**
   - Create specially shaped filenames in a directory that gets listed by LPC/admin flows.
   - Trigger listing repeatedly to crash the driver or produce corrupted output paths.
-- Practical attacker prerequisites:
+- **Practical attacker prerequisites:**
   - Ability to influence filenames in a listed directory and trigger `list_files()` behavior.
-- Security impact:
+- **Security impact:**
   - Driver crash risk and integrity/correctness issues in file listing output.
-- Fix references:
+- **Fix references:**
   - simulate.c:1150
   - simulate.c:1183
   - simulate.c:1227
 
-3. list_files() directory handle leak on early return
-- Status: Fixed
-- Risk class: Resource leak / availability degradation.
-- What this vulnerability meant:
+### 3. list_files() directory handle leak on early return
+- **Status:** Fixed
+- **Risk class:** Resource leak / availability degradation.
+- **What this vulnerability meant:**
   - Some error/early-return branches in `list_files()` skipped `closedir()`.
   - Repeated hits leaked file descriptors over time.
-- How an attacker could exploit it (pre-fix):
+- **How an attacker could exploit it (pre-fix):**
   - Repeatedly invoke list operations along leaking branches.
   - Exhaust process file descriptors and degrade service until failures or crash.
-- Practical attacker prerequisites:
+- **Practical attacker prerequisites:**
   - Ability to trigger directory listing operations frequently.
-- Security impact:
+- **Security impact:**
   - Denial of service via resource exhaustion.
-- Fix references:
+- **Fix references:**
   - simulate.c:1165
   - simulate.c:1166
   - simulate.c:1237
 
-4. restore_object() early-return leaks and short-name indexing guard
-- Status: Fixed
-- Risk class: Resource leak + potential out-of-bounds read.
-- What this vulnerability meant:
+### 4. restore_object() early-return leaks and short-name indexing guard
+- **Status:** Fixed
+- **Risk class:** Resource leak + potential out-of-bounds read.
+- **What this vulnerability meant:**
   - `restore_object()` had early exits that leaked allocated buffers/file handles.
   - Short-name extension handling had unsafe indexing assumptions.
-- How an attacker could exploit it (pre-fix):
+- **How an attacker could exploit it (pre-fix):**
   - Trigger repeated restore failures (malformed or missing files) to leak resources.
   - Feed boundary-case paths to exercise unsafe indexing and destabilize restore flow.
-- Practical attacker prerequisites:
+- **Practical attacker prerequisites:**
   - Ability to invoke restore paths with attacker-influenced file names/content.
-- Security impact:
+- **Security impact:**
   - Gradual resource exhaustion and potential crash/undefined behavior in restore handling.
-- Fix references:
+- **Fix references:**
   - object.c:116
   - object.c:127
   - object.c:133
@@ -85,203 +87,203 @@ Fixed In Current Branch
   - object.c:179
   - object.c:181
 
-5. ACCESS.DENY parser hardening and getpeername length initialization
-- Status: Fixed
-- Risk class: Parser robustness / undefined behavior risk.
-- What this vulnerability meant:
+### 5. ACCESS.DENY parser hardening and getpeername length initialization
+- **Status:** Fixed
+- **Risk class:** Parser robustness / undefined behavior risk.
+- **What this vulnerability meant:**
   - ACCESS.DENY parsing accepted weak/malformed cases, and socket peer-name length handling was unsafe.
   - Uninitialized/incorrect length state around `getpeername()` could lead to undefined behavior.
-- How an attacker could exploit it (pre-fix):
+- **How an attacker could exploit it (pre-fix):**
   - Abuse malformed ACL entries or edge-case connection metadata to cause unpredictable access-control behavior.
   - In worst case, convert parser/UB behavior into availability issues.
-- Practical attacker prerequisites:
+- **Practical attacker prerequisites:**
   - Ability to influence ACCESS.DENY content and/or repeatedly exercise connection admission checks.
-- Security impact:
+- **Security impact:**
   - Access-control reliability issues and potential denial-of-service conditions.
-- Fix references:
+- **Fix references:**
   - comm1.c:597
   - comm1.c:621
   - comm1.c:627
   - comm1.c:630
   - comm1.c:662
 
-6. Startup hard-fail when hostname is unresolved
-- Status: Fixed
-- Risk class: Availability / deployment fragility.
-- What this vulnerability meant:
+### 6. Startup hard-fail when hostname is unresolved
+- **Status:** Fixed
+- **Risk class:** Availability / deployment fragility.
+- **What this vulnerability meant:**
   - Driver startup depended on successful hostname resolution and could hard-fail when resolution was unavailable.
-- How an attacker could exploit it (pre-fix):
+- **How an attacker could exploit it (pre-fix):**
   - Influence DNS/resolver conditions to force startup failure after restart.
   - Turn transient resolver outages into durable service downtime.
-- Practical attacker prerequisites:
+- **Practical attacker prerequisites:**
   - Ability to affect resolver/network conditions (or an unreliable host resolver environment).
-- Security impact:
+- **Security impact:**
   - Service unavailability during boot/restart windows.
-- Fix references:
+- **Fix references:**
   - comm1.c:71
 
-7. Remote memory corruption in socket input buffering (newline expansion overflow)
-- Status: Fixed
-- Risk class: Critical memory safety.
-- What this vulnerability meant:
+### 7. Remote memory corruption in socket input buffering (newline expansion overflow)
+- **Status:** Fixed
+- **Risk class:** Critical memory safety.
+- **What this vulnerability meant:**
   - Input normalization expanded newlines without correctly enforcing remaining per-user buffer capacity.
   - Remote client input could overflow socket/user buffers during line processing.
-- How an attacker could exploit it (pre-fix):
+- **How an attacker could exploit it (pre-fix):**
   - Send crafted long interactive payloads that maximize expansion behavior.
   - Corrupt memory and force crashes; depending on build/allocator/platform, potential code-execution conditions existed.
-- Practical attacker prerequisites:
+- **Practical attacker prerequisites:**
   - Network reachability to the listener and ability to send raw interactive input.
-- Security impact:
+- **Security impact:**
   - Critical remote memory-corruption exposure (DoS; possible RCE class).
-- Fix summary: input normalization is now bounded by remaining per-user buffer space; overflow attempts stop appending and connection is marked for close.
-- Fix references:
+- **Fix summary:** input normalization is now bounded by remaining per-user buffer space; overflow attempts stop appending and connection is marked for close.
+- **Fix references:**
   - comm1.c:246
   - comm1.c:254
   - comm1.c:355
   - comm1.c:421
 
-8. Privileged efuns missing driver-level authorization gates
-- Status: Fixed
-- Risk class: Critical privilege boundary.
-- What this vulnerability meant:
+### 8. Privileged efuns missing driver-level authorization gates
+- **Status:** Fixed
+- **Risk class:** Critical privilege boundary.
+- **What this vulnerability meant:**
   - Sensitive efuns (`snoop`, `shutdown`, `ed`, wizard creation path) lacked strict, centralized driver-level authorization checks.
   - Safety depended too heavily on mudlib-side assumptions.
-- How an attacker could exploit it (pre-fix):
+- **How an attacker could exploit it (pre-fix):**
   - Invoke privileged efuns from unauthorized LPC contexts.
   - Abuse `snoop` for credential/session surveillance, `shutdown` for DoS, and `ed`/wizard flows for unauthorized administrative actions.
-- Practical attacker prerequisites:
+- **Practical attacker prerequisites:**
   - Ability to execute LPC in a context that can reach the relevant efuns/commands.
-- Security impact:
+- **Security impact:**
   - Privilege escalation and administrative boundary compromise.
-- Fix summary: added explicit level checks for `snoop`, `shutdown`, and `ed`; `create_wizard` restricted to trusted caller object.
-- Fix references:
+- **Fix summary:** added explicit level checks for `snoop`, `shutdown`, and `ed`; `create_wizard` restricted to trusted caller object.
+- **Fix references:**
   - simulate.c:860
   - simulate.c:1394
   - simulate.c:1409
   - simulate.c:1422
   - simulate.c:1475
 
-9. Command injection in create_wizard() via system()
-- Status: Fixed
-- Risk class: Critical host command execution.
-- What this vulnerability meant:
+### 9. Command injection in create_wizard() via system()
+- **Status:** Fixed
+- **Risk class:** Critical host command execution.
+- **What this vulnerability meant:**
   - `create_wizard()` built shell commands from attacker-influenced input and executed them via `system()`.
-- How an attacker could exploit it (pre-fix):
+- **How an attacker could exploit it (pre-fix):**
   - Supply wizard names containing shell metacharacters.
   - Break out of intended command semantics and execute arbitrary host shell commands.
-- Practical attacker prerequisites:
+- **Practical attacker prerequisites:**
   - Ability to reach the wizard-creation path with controlled name input.
-- Security impact:
+- **Security impact:**
   - Host-level command execution under driver process privileges.
-- Fix summary: removed `system()` and shell command construction; replaced with direct file append via stdio and strict owner validation.
-- Fix references:
+- **Fix summary:** removed `system()` and shell command construction; replaced with direct file append via stdio and strict owner validation.
+- **Fix references:**
   - simulate.c:796
   - simulate.c:801
   - simulate.c:835
 
-10. ed() initial file open path bypass of standard file-name mediation
-- Status: Fixed
-- Risk class: High path policy bypass.
-- What this vulnerability meant:
+### 10. ed() initial file open path bypass of standard file-name mediation
+- **Status:** Fixed
+- **Risk class:** High path policy bypass.
+- **What this vulnerability meant:**
   - `ed(file)` did not consistently enforce `check_file_name()` / `legal_path()` on initial open.
   - This weakened standard mudlib file policy mediation on editor entry.
-- How an attacker could exploit it (pre-fix):
+- **How an attacker could exploit it (pre-fix):**
   - Open files outside authorized policy boundaries.
   - Use editor flows to read/modify unexpected files if mudlib relied on mediation hooks for enforcement.
-- Practical attacker prerequisites:
+- **Practical attacker prerequisites:**
   - Ability to invoke `ed()` with controlled path input.
-- Security impact:
+- **Security impact:**
   - Unauthorized file access and potential data tampering.
-- Fix summary: `ed(file)` now passes through `check_file_name()` and `legal_path()` before opening.
-- Fix references:
+- **Fix summary:** `ed(file)` now passes through `check_file_name()` and `legal_path()` before opening.
+- **Fix references:**
   - simulate.c:1427
   - simulate.c:1428
   - simulate.c:1431
 
-11. Listener binds all interfaces by default
-- Status: Fixed
-- Risk class: Medium exposure amplifier.
-- What this vulnerability meant:
+### 11. Listener binds all interfaces by default
+- **Status:** Fixed
+- **Risk class:** Medium exposure amplifier.
+- **What this vulnerability meant:**
   - Default listener behavior exposed the service on all interfaces unless explicitly restricted.
   - Operators could unintentionally publish a local/testing instance to external networks.
-- How an attacker could exploit it (pre-fix):
+- **How an attacker could exploit it (pre-fix):**
   - Connect remotely to unintended exposed instances.
   - Chain with weak passwords or other bugs to move from accidental exposure to compromise.
-- Practical attacker prerequisites:
+- **Practical attacker prerequisites:**
   - Network path to exposed host/port.
-- Security impact:
+- **Security impact:**
   - Expanded remote attack surface and higher probability of external abuse.
-- Fix summary: default bind address changed to loopback (`127.0.0.1`) with explicit opt-in to all interfaces via `MUD_BIND_ADDR=*` or `0.0.0.0`.
-- Fix references:
+- **Fix summary:** default bind address changed to loopback (`127.0.0.1`) with explicit opt-in to all interfaces via `MUD_BIND_ADDR=*` or `0.0.0.0`.
+- **Fix references:**
   - comm1.c:76
   - comm1.c:77
   - comm1.c:79
 
-12. parse.c UB paths in plural/name formatting
-- Status: Fixed
-- Risk class: Medium stability/correctness; low direct integrity impact.
-- What this vulnerability meant:
+### 12. parse.c UB paths in plural/name formatting
+- **Status:** Fixed
+- **Risk class:** Medium stability/correctness; low direct integrity impact.
+- **What this vulnerability meant:**
   - Plural/name formatting logic in parser code had undefined-behavior paths under edge input/state combinations.
-- How an attacker could exploit it (pre-fix):
+- **How an attacker could exploit it (pre-fix):**
   - Feed crafted parser text patterns to trigger unstable formatting behavior.
   - Primarily turn parser paths into crash/instability vectors rather than privilege escalation.
-- Practical attacker prerequisites:
+- **Practical attacker prerequisites:**
   - Ability to submit parser-relevant interactive text.
-- Security impact:
+- **Security impact:**
   - Reliability degradation and possible denial-of-service by malformed input pressure.
-- Fix references:
+- **Fix references:**
   - parse.c:1291
   - parse.c:1294
   - parse.c:1364
 
-13. transfer() container policy bypass via can_put_and_get() guard logic
-- Status: Fixed
-- Risk class: High privilege/integrity boundary bypass.
-- What this vulnerability meant:
+### 13. transfer() container policy bypass via can_put_and_get() guard logic
+- **Status:** Fixed
+- **Risk class:** High privilege/integrity boundary bypass.
+- **What this vulnerability meant:**
   - Driver-level policy checks around `can_put_and_get()` were too weak in `transfer_object()`.
   - Containers signaling "deny put/get" could still be treated as transferable in some return paths.
-- How an attacker could exploit it (pre-fix):
+- **How an attacker could exploit it (pre-fix):**
   - Move items out of containers that should block extraction.
   - Insert items into containers that should block insertion.
   - Abuse any mudlib command path that relies on driver `transfer()` behavior for inventory authorization.
   - If a malicious LPC object could call `transfer()`, it could bypass intended container policy hooks.
-- Practical attacker prerequisites:
+- **Practical attacker prerequisites:**
   - Any actor who can reach a `transfer()` code path (player command flow or hostile LPC object).
-- Security impact:
+- **Security impact:**
   - Unauthorized item movement, theft-style behavior, and inventory state integrity violations.
-- Fix summary: source/destination container checks in `transfer_object()` now require numeric truthy return from `can_put_and_get()`; zero return is denied.
-- Fix references:
+- **Fix summary:** source/destination container checks in `transfer_object()` now require numeric truthy return from `can_put_and_get()`; zero return is denied.
+- **Fix references:**
   - simulate.c:2554
   - simulate.c:2568
-- Validation references:
+- **Validation references:**
   - test-mudlib ID `SEC-001`
 
-14. wizard save_object() namespace boundary bypass (prefix-match weakness)
-- Status: Fixed
-- Risk class: High filesystem integrity boundary bypass.
-- What this vulnerability meant:
+### 14. wizard save_object() namespace boundary bypass (prefix-match weakness)
+- **Status:** Fixed
+- **Risk class:** High filesystem integrity boundary bypass.
+- **What this vulnerability meant:**
   - Wizard save path ownership used a prefix match (`players/<name...>`) instead of an exact path-segment boundary.
   - A wizard named `alice` could pass checks for paths beginning with `players/alice2`.
-- How an attacker could exploit it (pre-fix):
+- **How an attacker could exploit it (pre-fix):**
   - Write or overwrite persistent save files outside their own namespace.
   - Corrupt or replace another wizard/account state file.
   - Plant crafted persistent data that could later be consumed by `restore_object()` paths.
-- Practical attacker prerequisites:
+- **Practical attacker prerequisites:**
   - Wizard-level LPC execution context (or compromised wizard account/object) with access to `save_object()`.
-- Security impact:
+- **Security impact:**
   - Cross-namespace persistent-data tampering, integrity loss, and potential follow-on privilege abuse via poisoned state.
-- Fix summary: wizard save paths now require an exact `players/<wizard>` segment boundary, blocking prefix collisions like `players/alice2` for wizard `alice`.
-- Fix references:
+- **Fix summary:** wizard save paths now require an exact `players/<wizard>` segment boundary, blocking prefix collisions like `players/alice2` for wizard `alice`.
+- **Fix references:**
   - object.c:65
-- Validation references:
+- **Validation references:**
   - test-mudlib ID `SEC-002`
 
-Remaining Issues (Ordered By Risk To System Data Integrity)
+## Remaining Issues (Ordered By Risk To System Data Integrity)
 
-1. No unresolved driver-level integrity-critical issues remain from the previously reported list in this branch, including `SEC-001` and `SEC-002`.
+### 1. No unresolved driver-level integrity-critical issues remain from the previously reported list in this branch, including `SEC-001` and `SEC-002`.
 - Note: This does not guarantee absence of vulnerabilities outside the audited paths.
 
-Residual Risk Notes
+## Residual Risk Notes
 - Mudlib LPC policy (`valid_read`, `valid_write`, command-level authorization) still determines real-world security posture.
 - Filesystem permissions for runtime directories (players/, log/, etc.) remain operationally critical.
 - Additional fuzzing of parser/interactive input and a dedicated LPC-level permission audit are recommended.
