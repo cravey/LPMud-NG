@@ -195,7 +195,7 @@ ci-warnings:
 
 ci-sanitize:
 	$(MAKE) clean
-	$(MAKE) parse count_active CFLAGS='$(BASE_CFLAGS) $(CI_SANITIZE_FLAGS)' LIBS='-lm -fsanitize=address,undefined'
+	$(MAKE) parse count_active CFLAGS='$(BASE_CFLAGS) $(CI_SANITIZE_FLAGS)' LIBS='-lm $(CRYPT_LIB) $(SSL_LIBS) -fsanitize=address,undefined'
 
 ci-analyze:
 	$(MAKE) clean

@@ -56,6 +56,10 @@ Run commands from this directory (`lpmud/`).
 - `make ci`: run all three validation gates
   - note: `ci-tidy` is intentionally standalone and not included in `make ci`
 
+Linux note for `ci-sanitize`:
+
+- `ci-sanitize` now preserves platform link libraries (including Linux `-lcrypt`) while adding sanitizer link flags.
+
 ### Driver Suite Convenience Target
 
 - `make mudlibtest`: runs `./tests/run_test_mudlib_suite.sh` and prints suite summary

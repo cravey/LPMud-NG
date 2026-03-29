@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEST_DIR="$ROOT_DIR/tests"
+source "$TEST_DIR/test_user.sh"
 RUN_ID="$(date +%Y%m%d_%H%M%S)"
 RUN_DIR_REL="tests/reports/engine_suite_${RUN_ID}"
 RUN_DIR="$ROOT_DIR/$RUN_DIR_REL"
@@ -11,7 +12,7 @@ STATIC_DIR="$ROOT_DIR/$STATIC_DIR_REL"
 
 mkdir -p "$RUN_DIR" "$STATIC_DIR"
 
-TEST_USER="$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-' | tr '0-9' 'abcdefghij' | cut -c1-10)"
+TEST_USER="$(make_test_user)"
 TEST_PASS="codex_pass_123"
 
 RUNTIME_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/lpmud-runtime.XXXXXX")"

@@ -15,6 +15,7 @@ All generated artifacts are written under `lpmud/tests/reports/` in timestamped 
 | `run_test_mudlib_suite.sh` | shell runner | Main dedicated `test-mudlib` integration suite. Builds `parse`, runs driver on isolated copied `test-mudlib`, executes `runtests`. | `test-mudlib/`, `test_mudlib_suite.exp` | `tests/reports/test_mudlib_suite_<ts>/` |
 | `run_test_mudlib_ssl_suite.sh` | shell runner | TLS variant of the same suite. Builds with `USE_SSL=1`, generates ephemeral self-signed cert, runs harness with OpenSSL client. | `test-mudlib/`, `test_mudlib_suite.exp`, OpenSSL libs | `tests/reports/test_mudlib_ssl_suite_<ts>/` |
 | `run_engine_functional_suite.sh` | shell runner | Classic mudlib end-to-end checks (new + existing player flows) plus static mudlib analysis. | `mudlib/`, `nc_engine_suite.exp`, `analyze_mudlib.py` | `tests/reports/engine_suite_<ts>/` |
+| `test_user.sh` | shell helper | Generates throwaway test login names accepted by test mudlib constraints (`a-z`, short length) without requiring `uuidgen`. | `/dev/urandom`, `head`, `od`, shell utilities | emitted username string |
 | `run_driver_differential_suite.sh` | shell runner | Runs the dedicated suite against NG and orig parse binaries, compares PASS/FAIL ID maps. | NG parse, orig parse, `test_mudlib_suite.exp` | `tests/reports/driver_diff_suite_<ts>/diff.tsv` |
 | `run_driver_fuzz_suite.sh` | shell runner | Isolated command-surface fuzz runs against live driver. | `fuzz_driver_surface.py`, `test-mudlib/` | `tests/reports/driver_fuzz_suite_<ts>/` |
 | `run_driver_security_suite.sh` | shell runner | Driver/network security regressions not suitable for in-process LPC-only coverage (bind defaults, ACCESS.DENY robustness, newline payload resilience). | `parse`, `test-mudlib/`, `nc`, `lsof` | `tests/reports/driver_security_suite_<ts>/` |
@@ -111,7 +112,7 @@ make securitytest
 
 1. Shell/tooling: `bash`, `make`, `python3`.
 2. Network harness: `expect`, `nc`.
-3. Script utilities used by runners: `grep`, `sed`, `awk`, `tail`, `lsof`, `uuidgen`, `mktemp`, `openssl` (SSL suite).
+3. Script utilities used by runners: `grep`, `sed`, `awk`, `tail`, `lsof`, `head`, `od`, `mktemp`, `openssl` (SSL suite). (`uuidgen` is no longer required.)
 4. Differential suite requires two parse binaries (`NG_PARSE_BIN` and `ORIG_PARSE_BIN`, or `ORIG_LPMUD_ROOT` with `parse`).
 5. Local bind/connect access to `127.0.0.1:2000` is required for network suites.
 
@@ -124,6 +125,7 @@ make securitytest
 | `bind: Operation not permitted` or cannot listen on `localhost:2000` | restricted sandbox/permissions, existing listener | run outside restricted sandbox; run `lsof -nP -iTCP:2000 -sTCP:LISTEN` |
 | `expect` timeout waiting for prompt/output | driver failed to boot, wrong mudlib root, prompt mismatch | inspect `parse.log`, `make_parse.log`, and `session.log`; confirm `MUD_LIB` points to intended runtime copy |
 | suite exits early after compile step | build failure or tool missing | read `make_parse.log`; verify required tools in this doc are present |
+| `Illegal character '?'` / `Illegal character ':'` in `test_runner.c` | this LPC grammar does not support C-style ternary (`?:`), so lexer/parser reject those tokens and later statements may produce cascading errors like `Illegal LHS` | inspect `parse.log`, replace ternary expression with explicit `if/else` assignment |
 | SSL suite handshake failure | missing/mismatched cert/key, cert trust mismatch, SSL not enabled in build | check `MUD_SSL_*` env vars, inspect `expect.log`, verify cert/key pair and run `openssl s_client` probe |
 | differential suite cannot compare runs | missing `ORIG_PARSE_BIN`/`NG_PARSE_BIN` inputs | set `NG_PARSE_BIN` and either `ORIG_PARSE_BIN` or `ORIG_LPMUD_ROOT` |
 | fuzz run marks crash-suspected artifacts | driver exited or dropped connection under fuzz input | inspect per-seed JSON and transcript logs in run directory, then reproduce that seed in isolation |

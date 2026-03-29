@@ -8,7 +8,7 @@ This document lists external tools and libraries used by the `lpmud/` build and 
 
 These are required for standard `make parse` / `make all` builds:
 
-- `make`
+- `make` (GNU Make syntax is used; on FreeBSD use `gmake`)
 - C compiler with C23 support (`cc`, `clang`, or `gcc`)
 - `lex` and `yacc` compatible tooling
   - defaults in `Makefile`: `LEX=lex`, `YFLAGS=-d`
@@ -29,7 +29,7 @@ Optional build extension:
 |---|---|---|---|
 | `make parse`, `make all`, `make debug`, `make count_active` | compiler toolchain + lex/yacc family | yes | `Makefile` build rules |
 | `make ci-warnings` | same as build toolchain | yes | `Makefile` |
-| `make ci-sanitize` | compiler with sanitizer support | yes | `Makefile` |
+| `make ci-sanitize` | compiler with sanitizer support; Linux also needs `-lcrypt` during sanitizer link | yes | `Makefile` |
 | `make ci-analyze` | `clang` | yes for this target | `Makefile` checks `command -v clang` |
 | `make ci-tidy` | `clang-tidy` | yes for this target | `Makefile` prefers `/opt/homebrew/opt/llvm/bin/clang-tidy`, falls back to `command -v clang-tidy` |
 | `make ci` | inherits `ci-*` dependencies | yes | `Makefile` |
@@ -55,7 +55,8 @@ Notes:
 - `expect`
 - `nc` (netcat; used for readiness checks and client sessions)
 - `lsof`
-- `uuidgen`
+- `head`
+- `od`
 - `mktemp`
 
 ### Common shell utilities used in runners
@@ -94,7 +95,7 @@ Potential extras depending on environment:
 ```bash
 sudo apt-get update
 sudo apt-get install -y build-essential bison flex clang expect netcat-openbsd \
-  lsof uuid-runtime openssl libssl-dev libcrypt-dev emacs-nox
+  lsof openssl libssl-dev libcrypt-dev emacs-nox
 ```
 
 ### Fedora/RHEL/CentOS
@@ -104,6 +105,17 @@ sudo dnf install -y gcc make bison flex clang expect nc lsof util-linux \
   openssl openssl-devel libxcrypt-devel emacs
 ```
 
+### FreeBSD
+
+```bash
+sudo pkg install -y gmake bison flex llvm expect netcat lsof openssl emacs
+```
+
+Notes:
+
+- Use `gmake` (or alias `make=gmake`) because this project `Makefile` uses GNU make features.
+- `head` and `od` are provided by FreeBSD base system (`/usr/bin`).
+
 ---
 
 ## 5) Verify Tool Availability
@@ -112,7 +124,7 @@ From `lpmud/`, quick checks:
 
 ```bash
 command -v make cc lex yacc
-command -v clang expect nc lsof uuidgen mktemp
+command -v clang expect nc lsof head od mktemp
 command -v clang-tidy
 command -v openssl grep sed awk tail
 command -v etags lint
@@ -133,7 +145,21 @@ make parse USE_SSL=1 OPENSSL_ROOT=/path/to/openssl
 
 ---
 
-## 6) Relationship to Other Docs
+## 6) `ci-sanitize` Link Behavior
+
+`ci-sanitize` in `Makefile` runs:
+
+```bash
+$(MAKE) parse count_active CFLAGS='$(BASE_CFLAGS) $(CI_SANITIZE_FLAGS)' LIBS='-lm $(CRYPT_LIB) $(SSL_LIBS) -fsanitize=address,undefined'
+```
+
+This preserves platform-required libs (for example Linux `-lcrypt`) while still enforcing sanitizer runtime linkage.
+
+If you override `LIBS` manually for sanitizer builds, include any required platform libs as needed.
+
+---
+
+## 7) Relationship to Other Docs
 
 - Build/deploy overview: [README.md](README.md)
 - Driver internals and architecture: [QUICKSTART.md](QUICKSTART.md)

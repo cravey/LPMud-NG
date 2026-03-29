@@ -3,12 +3,13 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEST_DIR="$ROOT_DIR/tests"
+source "$TEST_DIR/test_user.sh"
 RUN_ID="$(date +%Y%m%d_%H%M%S)"
 RUN_DIR_REL="tests/reports/test_mudlib_ssl_suite_${RUN_ID}"
 RUN_DIR="$ROOT_DIR/$RUN_DIR_REL"
 CLEAN_LOG="$(mktemp "${TMPDIR:-/tmp}/lpmud-make-clean-ssl.XXXXXX.log")"
 
-TEST_USER="$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-' | tr '0-9' 'abcdefghij' | cut -c1-10)"
+TEST_USER="$(make_test_user)"
 
 RUNTIME_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/lpmud-test-mudlib-ssl.XXXXXX")"
 RUNTIME_MUDLIB="$RUNTIME_ROOT/mudlib"

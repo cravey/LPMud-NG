@@ -935,6 +935,7 @@ test_restore_object_boundary_guards() {
 
 test_create_wizard_injection_guard() {
     string trap;
+    string trap_text;
     int marker;
     string marker_path;
 
@@ -945,9 +946,14 @@ test_create_wizard_injection_guard() {
 
     if (trap && marker < 0)
         record_pass("SEC-008", "create_wizard() rejects shell-metacharacter payloads safely");
-    else
+    else {
+        if (trap)
+            trap_text = trap;
+        else
+            trap_text = "0";
         record_fail("SEC-008", "create_wizard() rejects shell-metacharacter payloads safely",
-                    "trap=" + (trap ? trap : "0") + ", marker_size=" + marker);
+                    "trap=" + trap_text + ", marker_size=" + marker);
+    }
 
     rm(marker_path);
 }
