@@ -960,8 +960,8 @@ test_create_wizard_injection_guard() {
 
 test_parse_plural_stability_guards() {
     int i, ok, rc;
+    status cases;
     string trap;
-    string *cases;
     string noun;
     string tail;
 

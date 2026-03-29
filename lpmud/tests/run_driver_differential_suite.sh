@@ -117,6 +117,36 @@ Expect line: $expect_line
 EOF
 }
 
+write_skip_summary() {
+  local reason="$1"
+  local ng_total=0
+
+  if [[ -f "$RUN_DIR/ng/status.tsv" ]]; then
+    ng_total="$(wc -l <"$RUN_DIR/ng/status.tsv" | tr -d ' ')"
+  fi
+
+  cat >"$RUN_DIR/SUMMARY.txt" <<EOF
+Driver differential suite skipped.
+
+Run ID: $RUN_ID
+Run dir: $RUN_DIR_REL
+
+Reason:
+- $reason
+
+Captured IDs:
+- NG: $ng_total
+- Orig: skipped
+
+Artifacts:
+- ng/parse.log
+- ng/expect.log
+- ng/session.log
+- ng/RESULT.txt
+- ng/status.tsv
+EOF
+}
+
 require_cmd grep
 require_cmd sed
 require_cmd awk
@@ -128,6 +158,13 @@ mkdir -p "$RUN_DIR"
 
 echo "==> Running differential suite: ng"
 run_suite_for_driver "ng" "$NG_PARSE" "$NG_ROOT"
+
+if [[ ! -x "$ORIG_PARSE" ]]; then
+  write_skip_summary "orig parse binary is missing or not executable: $ORIG_PARSE"
+  echo "==> Skipped: missing orig parse binary ($ORIG_PARSE)"
+  echo "==> Done: $RUN_DIR_REL"
+  exit 0
+fi
 
 echo "==> Running differential suite: orig"
 run_suite_for_driver "orig" "$ORIG_PARSE" "$ORIG_ROOT"
