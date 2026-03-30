@@ -146,18 +146,22 @@ int restore_object(struct object *ob, char *file)
     val = xalloc(st.st_size + 1);
     buff = xalloc(st.st_size + 1);
     current_object = ob;
-    while(1) {
-	struct svalue *v;
+	while(1) {
+	    struct svalue *v;
+	    size_t var_len;
 
-	if (fgets(buff, st.st_size + 1, f) == 0)
-	    break;
-	/* Remember that we have a newline at end of buff ! */
-	space = strchr(buff, ' ');
-	if (space == 0)
-	    error("Illegal format when restore %s.\n", name);
-	(void)strncpy(var, buff, space - buff);
-	var[space - buff] = '\0';
-	(void)strcpy(val, space+1);
+	    if (fgets(buff, st.st_size + 1, f) == 0)
+		break;
+	    /* Remember that we have a newline at end of buff ! */
+	    space = strchr(buff, ' ');
+	    if (space == 0)
+		error("Illegal format when restore %s.\n", name);
+	    var_len = (size_t)(space - buff);
+	    if (var_len == 0 || var_len >= sizeof var)
+		error("Illegal format when restore %s.\n", name);
+	    (void)memcpy(var, buff, var_len);
+	    var[var_len] = '\0';
+	    (void)strcpy(val, space+1);
 	p = find_status(var, 0);
 	if (p == 0 || p->is_static)
 	    continue;

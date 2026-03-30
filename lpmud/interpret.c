@@ -809,8 +809,16 @@ static struct value *print_expr(struct lnode *p)
 	extern jmp_buf error_recovery_context;
 	extern int error_recovery_context_exists;
 	extern struct value * catch_value;
-   	jmp_buf old_error_context;
+	jmp_buf old_error_context;
 	int old_exists_flag;
+	struct value **save_current_local_names = current_local_names;
+	struct value *save_current_argument = current_argument;
+	struct value *save_return_value = return_value;
+	struct lnode_2 *save_next_arg_list = next_arg_list_to_use;
+	struct object *save_previous = previous_ob;
+	struct object *save_current_inherit = current_inherit_ob;
+	struct object *save_frame_ob = frame_ob;
+	int save_stop_function = stop_function;
 	struct object *save_commander = command_giver,
 	    *save_current = current_object;
 	
@@ -840,6 +848,19 @@ static struct value *print_expr(struct lnode *p)
 	error_recovery_context_exists = old_exists_flag;
 	/* next error will still return 1 by default */
 	catch_value = &const1;
+	/*
+	 * Errors can longjmp out of nested apply()/print_function() frames.
+	 * Restore interpreter frame state so F_LOCAL_NAME/current argument
+	 * access does not point at dead stack storage from unwound calls.
+	 */
+	current_local_names = save_current_local_names;
+	current_argument = save_current_argument;
+	return_value = save_return_value;
+	next_arg_list_to_use = save_next_arg_list;
+	previous_ob = save_previous;
+	current_inherit_ob = save_current_inherit;
+	frame_ob = save_frame_ob;
+	stop_function = save_stop_function;
 	break;
     }
     case F_THROW:
@@ -2590,7 +2611,7 @@ static struct value *inter_sscanf(struct lnode *l)
 	 */
 	cp = find_percent(fmt);
 	if (cp == fmt)
-	    error("Illegal to have 2 adjacent %'s in fmt string in sscanf.");
+	    error("Illegal to have 2 adjacent %%'s in fmt string in sscanf.");
 	if (cp == 0)
 	    cp = fmt + strlen(fmt);
 	/*

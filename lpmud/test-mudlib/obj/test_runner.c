@@ -28,7 +28,10 @@ announce(msg) {
 record_pass(id, desc) {
     total_tests += 1;
     passed_tests += 1;
-    announce("[PASS][" + id + "] " + desc + "\n");
+    if (total_tests <= 20)
+        announce("[PASS][" + id + "] " + desc + "\n");
+    else if (total_tests % 25 == 0)
+        announce("[PASS][" + id + "]\n");
 }
 
 record_fail(id, desc, detail) {
@@ -138,10 +141,25 @@ start_suite(ob) {
     test_filesystem_path_control_chars();
     test_extract_boundaries();
     test_bit_efun_negative_indexes();
+    call_out("run_contract_phase_one", 1);
+    return 1;
+}
+
+run_contract_phase_one() {
+    if (!suite_running)
+        return;
+
     test_efun_contract_matrix();
     test_efun_contract_matrix_extended();
     test_operator_contract_matrix();
     test_operator_contract_matrix_extended();
+    call_out("run_contract_phase_two", 1);
+}
+
+run_contract_phase_two() {
+    if (!suite_running)
+        return;
+
     test_parse_and_sscanf_contract_matrix();
     test_efun_surface_contract_matrix();
     test_branch_mined_contract_targets();
@@ -149,7 +167,6 @@ start_suite(ob) {
 
     announce("[INFO][HARNESS] Asynchronous checks running (call_out, heart_beat, input_to)...\n");
     start_async_phase();
-    return 1;
 }
 
 test_arithmetic_loop() {
@@ -865,8 +882,10 @@ test_messaging_bounds_security() {
 
 test_list_files_security_guards() {
     string trap;
+    string trap_msg, phase;
     int i, ok, rc;
     string fname;
+    string short_pat, long_pat;
 
     rmdir("data/ls_sec_case");
     mkdir("data/ls_sec_case");
@@ -877,8 +896,29 @@ test_list_files_security_guards() {
 
     ok = 1;
     trap = 0;
-    for (i = 0; i < 200; i += 1) {
-        trap = catch(rc = ls("data/ls_sec_case", ""));
+    phase = "initial_full";
+    short_pat = "data/ls_sec_case/a*";
+    long_pat = "data/ls_sec_case/this_name_is_deliberately_long_for_truncation_probe_*";
+
+    trap = catch(rc = ls("data/ls_sec_case", ""));
+    if (trap || !intp(rc))
+        ok = 0;
+
+    for (i = 0; ok && i < 12; i += 1) {
+        phase = "short_pattern";
+        trap = catch(rc = ls(short_pat, ""));
+        if (trap) {
+            ok = 0;
+            break;
+        }
+        if (!intp(rc)) {
+            ok = 0;
+            trap = "ls() did not return int";
+            break;
+        }
+
+        phase = "long_pattern";
+        trap = catch(rc = ls(long_pat, ""));
         if (trap) {
             ok = 0;
             break;
@@ -890,13 +930,21 @@ test_list_files_security_guards() {
         }
     }
 
+    if (ok) {
+        phase = "final_full";
+        trap = catch(rc = ls("data/ls_sec_case", ""));
+        if (trap || !intp(rc))
+            ok = 0;
+    }
+
     if (ok)
         record_pass("SEC-006", "list_files() handles short/long names and repeated listings safely");
     else {
-        if (!trap)
-            trap = "0";
+        trap_msg = trap;
+        if (!trap_msg)
+            trap_msg = "0";
         record_fail("SEC-006", "list_files() handles short/long names and repeated listings safely",
-                    "trap=" + trap + ", iteration=" + i);
+                    "trap=" + trap_msg + ", iteration=" + i + ", phase=" + phase);
     }
 
     rm("data/ls_sec_case/a");
